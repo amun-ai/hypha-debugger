@@ -23,6 +23,7 @@ classifiers = [
 ]
 dependencies = [
     "hypha-rpc>=0.20.0",
+    "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]

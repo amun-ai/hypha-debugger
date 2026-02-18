@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hypha Debugger - Basic Example</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      color: #333;
+    }
+    h1 { color: #2c3e50; }
+    .demo-section {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    button {
+      background: #4a90d9;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 4px;
+    }
+    button:hover { background: #357abd; }
+    input, textarea {
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin: 4px;
+    }
+    #output {
+      background: #1e1e2e;
+      color: #a6e3a1;
+      padding: 12px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 13px;
+      white-space: pre-wrap;
+      min-height: 60px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Hypha Debugger - Demo Page</h1>
+  <p>This page demonstrates the hypha-debugger. A floating debug icon should appear in the bottom-right corner.</p>
+
+  <div class="demo-section">
+    <h2>Interactive Elements</h2>
+    <input type="text" id="name-input" placeholder="Enter your name" data-testid="name-input">
+    <button id="greet-btn" onclick="greet()">Greet</button>
+    <button id="counter-btn" onclick="increment()">Count: <span id="count">0</span></button>
+    <textarea id="notes" placeholder="Some notes..."></textarea>
+  </div>
+
+  <div class="demo-section">
+    <h2>Output</h2>
+    <div id="output">Waiting for interaction...</div>
+  </div>
+
+  <div class="demo-section" id="connect-section">
+    <h2>Connect Debugger</h2>
+    <p>Enter your Hypha server URL to start the debugger:</p>
+    <input type="text" id="server-url" value="https://hypha.aicell.io" style="width: 300px">
+    <button onclick="startDebug()">Start Debugger</button>
+    <div id="status" style="margin-top: 10px; font-style: italic; color: #666;"></div>
+  </div>
+
+  <!-- Load hypha-rpc from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/hypha-rpc@0.20.97/dist/hypha-rpc-websocket.min.js"></script>
+  <!-- Load hypha-debugger (local build) -->
+  <script src="../javascript/dist/hypha-debugger.js"></script>
+
+  <script>
+    let count = 0;
+
+    function greet() {
+      const name = document.getElementById('name-input').value || 'World';
+      document.getElementById('output').textContent = `Hello, ${name}!`;
+    }
+
+    function increment() {
+      count++;
+      document.getElementById('count').textContent = count;
+      document.getElementById('output').textContent = `Counter: ${count}`;
+    }
+
+    async function startDebug() {
+      const url = document.getElementById('server-url').value;
+      const status = document.getElementById('status');
+      status.textContent = 'Connecting...';
+      try {
+        const session = await hyphaDebugger.startDebugger({
+          server_url: url,
+          service_id: 'web-debugger',
+        });
+        status.innerHTML = `Connected! Workspace: <b>${session.workspace}</b>, Service: <b>${session.service_id}</b>`;
+      } catch (err) {
+        status.textContent = `Error: ${err.message}`;
+        status.style.color = 'red';
+      }
+    }
+  </script>
+</body>
+</html>

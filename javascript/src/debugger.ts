@@ -41,6 +41,10 @@ export interface DebugSession {
   workspace: string;
   /** The Hypha server connection object. */
   server: any;
+  /** HTTP base URL for calling service functions remotely. */
+  service_url: string;
+  /** JWT token for authenticating remote HTTP calls. */
+  token: string;
   /** Disconnect and clean up. */
   destroy: () => Promise<void>;
 }
@@ -152,26 +156,39 @@ export class HyphaDebugger {
 
       // Update UI
       const workspace = this.server.config.workspace;
+      const fullServiceId = this.serviceInfo.id ?? this.config.service_id;
+
+      // Generate a token for remote HTTP access
+      const sessionToken = await this.server.generateToken();
+
+      // Build the HTTP service URL
+      const serviceUrl = this.buildServiceUrl(fullServiceId);
+
       if (this.overlay) {
         this.overlay.setStatus("connected");
         this.overlay.setInfo({
           Status: "Connected",
           Server: this.config.server_url,
-          Workspace: workspace,
-          "Service ID": this.serviceInfo.id ?? this.config.service_id,
         });
+        this.overlay.setServiceUrl(serviceUrl, sessionToken);
         this.overlay.addLog("Service registered", "result");
       }
 
+      console.log(`[hypha-debugger] Connected to ${this.config.server_url}`);
+      console.log(`[hypha-debugger] Service ID: ${fullServiceId}`);
+      console.log(`[hypha-debugger] Service URL: ${serviceUrl}`);
+      console.log(`[hypha-debugger] Token: ${sessionToken}`);
       console.log(
-        `[hypha-debugger] Connected to ${this.config.server_url}, workspace: ${workspace}, service: ${this.serviceInfo.id}`
+        `[hypha-debugger] Test it:\n  curl '${serviceUrl}/get_page_info' -H 'Authorization: Bearer ${sessionToken}'`
       );
 
       // Build session object
       const session: DebugSession = {
-        service_id: this.serviceInfo.id ?? this.config.service_id,
+        service_id: fullServiceId,
         workspace,
         server: this.server,
+        service_url: serviceUrl,
+        token: sessionToken,
         destroy: () => this.destroy(),
       };
 
@@ -209,6 +226,18 @@ export class HyphaDebugger {
       delete w.__HYPHA_DEBUGGER__.instance;
       delete w.__HYPHA_DEBUGGER__.session;
     }
+  }
+
+  private buildServiceUrl(serviceId: string): string {
+    const base = this.config.server_url.replace(/\/+$/, "");
+    // serviceId format: "workspace/clientId:svcName"
+    const slashIdx = serviceId.indexOf("/");
+    if (slashIdx !== -1) {
+      const workspace = serviceId.substring(0, slashIdx);
+      const svcPart = serviceId.substring(slashIdx + 1);
+      return `${base}/${workspace}/services/${svcPart}`;
+    }
+    return `${base}/services/${serviceId}`;
   }
 
   private getConnectToServer(): any {

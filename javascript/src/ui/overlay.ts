@@ -176,9 +176,74 @@ export class DebugOverlay {
     for (const [label, value] of Object.entries(info)) {
       const row = document.createElement("div");
       row.className = "info-row";
-      row.innerHTML = `<span class="label">${label}</span><span class="value">${value}</span>`;
+      const labelSpan = document.createElement("span");
+      labelSpan.className = "label";
+      labelSpan.textContent = label;
+      const valueSpan = document.createElement("span");
+      valueSpan.className = "value";
+      valueSpan.textContent = value;
+      valueSpan.title = value;
+      row.appendChild(labelSpan);
+      row.appendChild(valueSpan);
       this.infoBody.appendChild(row);
     }
+  }
+
+  /** Show the service URL with a copy button. */
+  setServiceUrl(url: string, token: string): void {
+    const section = document.createElement("div");
+    section.className = "url-section";
+
+    const urlLabel = document.createElement("div");
+    urlLabel.className = "url-label";
+    urlLabel.textContent = "Service URL";
+    section.appendChild(urlLabel);
+
+    const urlRow = document.createElement("div");
+    urlRow.className = "url-row";
+    const urlText = document.createElement("span");
+    urlText.className = "url-text";
+    urlText.textContent = url;
+    urlText.title = url;
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "copy-btn";
+    copyBtn.textContent = "Copy";
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(url).then(() => {
+        copyBtn.textContent = "Copied!";
+        setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+      });
+    });
+    urlRow.appendChild(urlText);
+    urlRow.appendChild(copyBtn);
+    section.appendChild(urlRow);
+
+    const tokenLabel = document.createElement("div");
+    tokenLabel.className = "url-label";
+    tokenLabel.textContent = "Token";
+    tokenLabel.style.marginTop = "6px";
+    section.appendChild(tokenLabel);
+
+    const tokenRow = document.createElement("div");
+    tokenRow.className = "url-row";
+    const tokenText = document.createElement("span");
+    tokenText.className = "url-text";
+    tokenText.textContent = token.slice(0, 20) + "...";
+    tokenText.title = token;
+    const copyTokenBtn = document.createElement("button");
+    copyTokenBtn.className = "copy-btn";
+    copyTokenBtn.textContent = "Copy";
+    copyTokenBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(token).then(() => {
+        copyTokenBtn.textContent = "Copied!";
+        setTimeout(() => { copyTokenBtn.textContent = "Copy"; }, 1500);
+      });
+    });
+    tokenRow.appendChild(tokenText);
+    tokenRow.appendChild(copyTokenBtn);
+    section.appendChild(tokenRow);
+
+    this.infoBody.appendChild(section);
   }
 
   addLog(

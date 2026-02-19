@@ -33,8 +33,13 @@
     "remote-debugging",
     "web-automation"
   ],
-  "author": "",
+  "author": "Amun AI AB",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amun-ai/hypha-debugger.git"
+  },
+  "homepage": "https://github.com/amun-ai/hypha-debugger",
   "peerDependencies": {
     "hypha-rpc": ">=0.20.0"
   },

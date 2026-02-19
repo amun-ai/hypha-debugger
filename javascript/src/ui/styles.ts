@@ -143,6 +143,57 @@ export const overlayStyles = `
     font-size: 11px;
   }
 
+  .url-section {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid #313244;
+  }
+
+  .url-label {
+    font-size: 11px;
+    color: #6c7086;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
+  }
+
+  .url-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #313244;
+    border-radius: 3px;
+    padding: 4px 6px;
+  }
+
+  .url-text {
+    flex: 1;
+    font-family: 'SF Mono', Monaco, Consolas, monospace;
+    font-size: 10px;
+    color: #89b4fa;
+    word-break: break-all;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .copy-btn {
+    background: #45475a;
+    color: #cdd6f4;
+    border: none;
+    border-radius: 3px;
+    padding: 2px 8px;
+    font-size: 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .copy-btn:hover {
+    background: #585b70;
+  }
+
   .log-section {
     margin-top: 8px;
   }

@@ -101,7 +101,32 @@
           server_url: url,
           service_id: 'web-debugger',
         });
-        status.innerHTML = `Connected! Workspace: <b>${session.workspace}</b>, Service: <b>${session.service_id}</b>`;
+        const curlCmd = `curl '${session.service_url}/get_page_info' -H 'Authorization: Bearer ${session.token}'`;
+        status.innerHTML = '';
+        const connected = document.createElement('b');
+        connected.textContent = 'Connected!';
+        status.appendChild(connected);
+        status.appendChild(document.createElement('br'));
+
+        const urlLabel = document.createTextNode('Service URL: ');
+        status.appendChild(urlLabel);
+        const urlLink = document.createElement('a');
+        urlLink.href = session.service_url;
+        urlLink.target = '_blank';
+        urlLink.style.color = '#4a90d9';
+        urlLink.textContent = session.service_url;
+        status.appendChild(urlLink);
+        status.appendChild(document.createElement('br'));
+        status.appendChild(document.createElement('br'));
+
+        const curlLabel = document.createElement('b');
+        curlLabel.textContent = 'Test with curl:';
+        status.appendChild(curlLabel);
+        status.appendChild(document.createElement('br'));
+        const code = document.createElement('code');
+        code.style.cssText = 'font-size:12px;word-break:break-all;display:block;background:#f0f0f0;padding:8px;border-radius:4px;margin-top:4px';
+        code.textContent = curlCmd;
+        status.appendChild(code);
       } catch (err) {
         status.textContent = `Error: ${err.message}`;
         status.style.color = 'red';

@@ -18,6 +18,36 @@ from hypha_debugger.services.filesystem import list_files, read_file
 logger = logging.getLogger("hypha_debugger")
 
 
+def _build_service_url(server_url: str, service_id: str) -> str:
+    """Build the HTTP base URL for a registered service.
+
+    Args:
+        server_url: e.g. "https://hypha.aicell.io"
+        service_id: e.g. "ws-xxx/clientId:py-debugger"
+
+    Returns:
+        e.g. "https://hypha.aicell.io/ws-xxx/services/clientId:py-debugger"
+    """
+    base = server_url.rstrip("/")
+    # service_id format: "workspace/clientId:svcName"
+    parts = service_id.split("/", 1)
+    if len(parts) == 2:
+        workspace, svc_part = parts
+        return f"{base}/{workspace}/services/{svc_part}"
+    return f"{base}/services/{service_id}"
+
+
+def _print_session_info(server_url: str, service_id: str, service_url: str, token: str) -> None:
+    """Print session information with remote access URLs."""
+    print(f"[hypha-debugger] Connected to {server_url}")
+    print(f"[hypha-debugger] Service ID: {service_id}")
+    print(f"[hypha-debugger] Service URL: {service_url}")
+    print(f"[hypha-debugger] Token: {token}")
+    print()
+    print(f"[hypha-debugger] Test it:")
+    print(f"  curl '{service_url}/get_process_info' -H 'Authorization: Bearer {token}'")
+
+
 @dataclass
 class DebugSession:
     """Represents an active debug session connected to Hypha."""
@@ -25,6 +55,9 @@ class DebugSession:
     service_id: str
     workspace: str
     server: object
+    server_url: str = ""
+    service_url: str = ""
+    token: str = ""
     _loop: Optional[asyncio.AbstractEventLoop] = field(
         default=None, repr=False
     )
@@ -85,7 +118,7 @@ async def start_debugger(
         visibility: Service visibility ("public", "protected", "unlisted").
 
     Returns:
-        A DebugSession with service_id, workspace, and server.
+        A DebugSession with service_id, workspace, server, service_url, and token.
     """
     from hypha_rpc import connect_to_server
 
@@ -123,20 +156,27 @@ async def start_debugger(
     actual_id = svc_info.get("id", service_id) if isinstance(svc_info, dict) else service_id
     ws = server.config.get("workspace", workspace) if hasattr(server.config, "get") else getattr(server.config, "workspace", workspace)
 
+    # Generate a token for remote access
+    session_token = await server.generate_token()
+
+    # Build the HTTP service URL
+    service_url = _build_service_url(server_url, actual_id)
+
     logger.info(
         "Debugger connected: server=%s workspace=%s service=%s",
         server_url,
         ws,
         actual_id,
     )
-    print(f"[hypha-debugger] Connected to {server_url}")
-    print(f"[hypha-debugger] Workspace: {ws}")
-    print(f"[hypha-debugger] Service ID: {actual_id}")
+    _print_session_info(server_url, actual_id, service_url, session_token)
 
     return DebugSession(
         service_id=actual_id,
         workspace=ws,
         server=server,
+        server_url=server_url,
+        service_url=service_url,
+        token=session_token,
     )
 
 
@@ -157,7 +197,7 @@ def start_debugger_sync(
         Same as start_debugger().
 
     Returns:
-        A DebugSession with service_id, workspace, server, and destroy_sync().
+        A DebugSession with service_id, workspace, server, service_url, and token.
     """
     from hypha_rpc.sync import connect_to_server
 
@@ -189,18 +229,25 @@ def start_debugger_sync(
     actual_id = svc_info.get("id", service_id) if isinstance(svc_info, dict) else service_id
     ws = server.config.get("workspace", workspace) if hasattr(server.config, "get") else getattr(server.config, "workspace", workspace)
 
+    # Generate a token for remote access
+    session_token = server.generate_token()
+
+    # Build the HTTP service URL
+    service_url = _build_service_url(server_url, actual_id)
+
     logger.info(
         "Debugger connected (sync): server=%s workspace=%s service=%s",
         server_url,
         ws,
         actual_id,
     )
-    print(f"[hypha-debugger] Connected to {server_url}")
-    print(f"[hypha-debugger] Workspace: {ws}")
-    print(f"[hypha-debugger] Service ID: {actual_id}")
+    _print_session_info(server_url, actual_id, service_url, session_token)
 
     return DebugSession(
         service_id=actual_id,
         workspace=ws,
         server=server,
+        server_url=server_url,
+        service_url=service_url,
+        token=session_token,
     )

@@ -9,6 +9,7 @@ description = "Injectable debugger for Python processes and AI agents, powered b
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.9"
+authors = [{name = "Amun AI AB"}]
 keywords = ["debugger", "hypha", "rpc", "remote-debugging", "ai-agent"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -25,6 +26,10 @@ dependencies = [
     "hypha-rpc>=0.20.0",
     "pydantic>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/amun-ai/hypha-debugger"
+Repository = "https://github.com/amun-ai/hypha-debugger"
 
 [project.optional-dependencies]
 dev = [

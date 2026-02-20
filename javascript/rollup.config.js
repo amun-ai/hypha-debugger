@@ -12,7 +12,7 @@ const tsPlugin = (extraOpts = {}) =>
   });
 
 export default [
-  // ESM build (hypha-rpc is external)
+  // ESM build (hypha-rpc is external — users import it separately)
   {
     input: "src/index.ts",
     output: {
@@ -23,7 +23,7 @@ export default [
     external: ["hypha-rpc"],
     plugins: [resolve(), commonjs(), tsPlugin()],
   },
-  // UMD build (bundles everything, hypha-rpc expected as global)
+  // UMD build — everything bundled (single script tag, no dependencies)
   {
     input: "src/index.ts",
     output: {
@@ -31,15 +31,11 @@ export default [
       format: "umd",
       name: "hyphaDebugger",
       sourcemap: true,
-      globals: {
-        "hypha-rpc": "hyphaWebsocketClient",
-      },
       inlineDynamicImports: true,
     },
-    external: ["hypha-rpc"],
     plugins: [resolve({ browser: true }), commonjs(), tsPlugin()],
   },
-  // Minified UMD build
+  // Minified UMD build — everything bundled
   {
     input: "src/index.ts",
     output: {
@@ -47,12 +43,8 @@ export default [
       format: "umd",
       name: "hyphaDebugger",
       sourcemap: true,
-      globals: {
-        "hypha-rpc": "hyphaWebsocketClient",
-      },
       inlineDynamicImports: true,
     },
-    external: ["hypha-rpc"],
     plugins: [resolve({ browser: true }), commonjs(), tsPlugin(), terser()],
   },
 ];

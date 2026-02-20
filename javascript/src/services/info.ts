@@ -3,17 +3,44 @@
  */
 import { collectPageInfo, type PageInfo } from "../utils/env.js";
 
-export function getPageInfo(): PageInfo {
-  return collectPageInfo();
+export function getPageInfo(
+  include_logs?: boolean,
+  log_limit?: number,
+  log_level?: string,
+): any {
+  const info: any = collectPageInfo();
+
+  if (include_logs) {
+    const logs = (window as any).__HYPHA_DEBUGGER__?.consoleLogs ?? [];
+    const limit = log_limit ?? 50;
+    let filtered = log_level ? logs.filter((l: any) => l.level === log_level) : logs;
+    info.console_logs = filtered.slice(-limit);
+  }
+
+  return info;
 }
 
 getPageInfo.__schema__ = {
   name: "getPageInfo",
   description:
-    "Get information about the current web page including URL, title, viewport size, detected frameworks, and performance timing.",
+    "Get information about the current web page including URL, title, viewport size, detected frameworks, and performance timing. Optionally include recent console logs.",
   parameters: {
     type: "object",
-    properties: {},
+    properties: {
+      include_logs: {
+        type: "boolean",
+        description: "If true, include recent console output in the response. Default: false.",
+      },
+      log_limit: {
+        type: "number",
+        description: "Maximum number of console log entries to include (most recent). Default: 50.",
+      },
+      log_level: {
+        type: "string",
+        description: 'Filter console logs by level: "log", "warn", "error", "info". Omit for all levels.',
+        enum: ["log", "warn", "error", "info"],
+      },
+    },
   },
 };
 

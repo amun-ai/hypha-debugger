@@ -142,12 +142,12 @@ function fiberToInfo(
   return info;
 }
 
-export function getReactTree(options?: {
-  selector?: string;
-  max_depth?: number;
-}): ReactComponentInfo | { error: string } {
-  const selector = options?.selector ?? "#root";
-  const maxDepth = options?.max_depth ?? 5;
+export function getReactTree(
+  selector?: string,
+  max_depth?: number,
+): ReactComponentInfo | { error: string } {
+  selector = selector ?? "#root";
+  const maxDepth = max_depth ?? 5;
 
   const rootEl = document.querySelector(selector);
   if (!rootEl) {

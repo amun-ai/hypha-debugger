@@ -172,7 +172,12 @@ export class DebugOverlay {
   }
 
   setInfo(info: Record<string, string>): void {
-    this.infoBody.innerHTML = "";
+    // Remove only info rows, preserve instructions section
+    const oldRows = this.infoBody.querySelectorAll(".info-row");
+    oldRows.forEach((r) => r.remove());
+
+    // Insert info rows at the top of infoBody
+    const firstChild = this.infoBody.firstChild;
     for (const [label, value] of Object.entries(info)) {
       const row = document.createElement("div");
       row.className = "info-row";
@@ -185,63 +190,41 @@ export class DebugOverlay {
       valueSpan.title = value;
       row.appendChild(labelSpan);
       row.appendChild(valueSpan);
-      this.infoBody.appendChild(row);
+      this.infoBody.insertBefore(row, firstChild);
     }
   }
 
-  /** Show the service URL with a copy button. */
-  setServiceUrl(url: string, token: string): void {
+  /** Show the instruction block with a copy-all button. */
+  setInstructions(instructions: string): void {
+    // Remove any existing instruction section
+    const existing = this.infoBody.querySelector(".instructions-section");
+    if (existing) existing.remove();
+
     const section = document.createElement("div");
-    section.className = "url-section";
+    section.className = "instructions-section";
 
-    const urlLabel = document.createElement("div");
-    urlLabel.className = "url-label";
-    urlLabel.textContent = "Service URL";
-    section.appendChild(urlLabel);
-
-    const urlRow = document.createElement("div");
-    urlRow.className = "url-row";
-    const urlText = document.createElement("span");
-    urlText.className = "url-text";
-    urlText.textContent = url;
-    urlText.title = url;
-    const copyBtn = document.createElement("button");
-    copyBtn.className = "copy-btn";
-    copyBtn.textContent = "Copy";
-    copyBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(url).then(() => {
-        copyBtn.textContent = "Copied!";
-        setTimeout(() => { copyBtn.textContent = "Copy"; }, 1500);
+    const header = document.createElement("div");
+    header.className = "instructions-header";
+    const label = document.createElement("span");
+    label.className = "url-label";
+    label.textContent = "Instructions";
+    const copyAllBtn = document.createElement("button");
+    copyAllBtn.className = "copy-btn";
+    copyAllBtn.textContent = "Copy All";
+    copyAllBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(instructions).then(() => {
+        copyAllBtn.textContent = "Copied!";
+        setTimeout(() => { copyAllBtn.textContent = "Copy All"; }, 1500);
       });
     });
-    urlRow.appendChild(urlText);
-    urlRow.appendChild(copyBtn);
-    section.appendChild(urlRow);
+    header.appendChild(label);
+    header.appendChild(copyAllBtn);
+    section.appendChild(header);
 
-    const tokenLabel = document.createElement("div");
-    tokenLabel.className = "url-label";
-    tokenLabel.textContent = "Token";
-    tokenLabel.style.marginTop = "6px";
-    section.appendChild(tokenLabel);
-
-    const tokenRow = document.createElement("div");
-    tokenRow.className = "url-row";
-    const tokenText = document.createElement("span");
-    tokenText.className = "url-text";
-    tokenText.textContent = token.slice(0, 20) + "...";
-    tokenText.title = token;
-    const copyTokenBtn = document.createElement("button");
-    copyTokenBtn.className = "copy-btn";
-    copyTokenBtn.textContent = "Copy";
-    copyTokenBtn.addEventListener("click", () => {
-      navigator.clipboard.writeText(token).then(() => {
-        copyTokenBtn.textContent = "Copied!";
-        setTimeout(() => { copyTokenBtn.textContent = "Copy"; }, 1500);
-      });
-    });
-    tokenRow.appendChild(tokenText);
-    tokenRow.appendChild(copyTokenBtn);
-    section.appendChild(tokenRow);
+    const pre = document.createElement("pre");
+    pre.className = "instructions-block";
+    pre.textContent = instructions;
+    section.appendChild(pre);
 
     this.infoBody.appendChild(section);
   }

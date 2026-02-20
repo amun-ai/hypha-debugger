@@ -19,21 +19,29 @@ logger = logging.getLogger("hypha_debugger")
 
 
 def _build_service_url(server_url: str, service_id: str) -> str:
-    """Build the HTTP base URL for a registered service.
+    """Build a stable, predictable HTTP service URL.
+
+    Strips the clientId prefix so the URL uses only the bare service name.
+    Callers append ?_mode=last to resolve the most recent instance.
 
     Args:
         server_url: e.g. "https://hypha.aicell.io"
         service_id: e.g. "ws-xxx/clientId:py-debugger"
 
     Returns:
-        e.g. "https://hypha.aicell.io/ws-xxx/services/clientId:py-debugger"
+        e.g. "https://hypha.aicell.io/ws-xxx/services/py-debugger"
     """
     base = server_url.rstrip("/")
     # service_id format: "workspace/clientId:svcName"
     parts = service_id.split("/", 1)
     if len(parts) == 2:
         workspace, svc_part = parts
-        return f"{base}/{workspace}/services/{svc_part}"
+        # Strip clientId: "abc123:py-debugger" → "py-debugger"
+        if ":" in svc_part:
+            svc_name = svc_part.split(":", 1)[1]
+        else:
+            svc_name = svc_part
+        return f"{base}/{workspace}/services/{svc_name}"
     return f"{base}/services/{service_id}"
 
 
@@ -45,7 +53,7 @@ def _print_session_info(server_url: str, service_id: str, service_url: str, toke
     print(f"[hypha-debugger] Token: {token}")
     print()
     print(f"[hypha-debugger] Test it:")
-    print(f"  curl '{service_url}/get_process_info' -H 'Authorization: Bearer {token}'")
+    print(f"  curl '{service_url}/get_process_info?_mode=last' -H 'Authorization: Bearer {token}'")
 
 
 @dataclass

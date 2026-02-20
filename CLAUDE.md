@@ -117,18 +117,17 @@ All functions are annotated with JSON Schema for LLM tool calling.
 
 | Function | Description |
 |----------|-------------|
-| `get_page_info()` | Returns URL, title, viewport size, user agent, document size, performance timing |
+| `get_page_info(options?)` | Returns URL, title, viewport size, user agent, performance timing, optionally console logs |
+| `get_html(selector?, options?)` | Get page or element HTML content |
 | `query_dom(selector, options?)` | Query elements by CSS selector. Returns tag, text, attributes, bounding rect |
 | `click_element(selector)` | Click an element matching the selector |
 | `fill_input(selector, value)` | Set value of an input/textarea element |
 | `scroll_to(selector_or_position)` | Scroll to element or {x, y} position |
 | `take_screenshot(options?)` | Capture page/element screenshot as base64 PNG (via html-to-image) |
 | `execute_script(code)` | Execute arbitrary JavaScript, return result |
-| `get_computed_styles(selector, properties?)` | Get computed CSS styles for an element |
-| `get_react_tree(selector?)` | Inspect React component tree (fiber-based) |
-| `get_element_bounds(selector)` | Get element bounding rectangles |
 | `navigate(url)` | Navigate to a URL |
-| `get_console_logs(options?)` | Retrieve captured console output |
+| `get_react_tree(selector?)` | Inspect React component tree (fiber-based) |
+| `get_skill_md()` | Get full API documentation (agentskills.io spec) |
 
 ### React Integration
 
@@ -310,18 +309,21 @@ screenshot = await debugger.take_screenshot()
 result = await debugger.execute_script('document.title')
 ```
 
-**HTTP/curl:**
+**HTTP/curl (use `_mode=last` to avoid needing a clientId):**
 ```bash
 # Get page info
-curl https://hypha.aicell.io/<workspace>/services/<client>:web-debugger/get_page_info
+curl 'https://hypha.aicell.io/<workspace>/services/web-debugger/get_page_info?_mode=last' \
+  -H 'Authorization: Bearer <token>'
 
 # Execute code
-curl -X POST https://hypha.aicell.io/<workspace>/services/<client>:web-debugger/execute_script \
+curl -X POST 'https://hypha.aicell.io/<workspace>/services/web-debugger/execute_script?_mode=last' \
+  -H 'Authorization: Bearer <token>' \
   -H 'Content-Type: application/json' \
-  -d '{"code": "document.title"}'
+  -d '{"code": "return document.title"}'
 
 # Take screenshot
-curl https://hypha.aicell.io/<workspace>/services/<client>:web-debugger/take_screenshot
+curl 'https://hypha.aicell.io/<workspace>/services/web-debugger/take_screenshot?_mode=last' \
+  -H 'Authorization: Bearer <token>'
 ```
 
 ## Development

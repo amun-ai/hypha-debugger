@@ -3,18 +3,17 @@
  */
 import { toPng, toJpeg } from "html-to-image";
 
-export async function takeScreenshot(options?: {
-  selector?: string;
-  format?: "png" | "jpeg";
-  quality?: number;
-  scale?: number;
-  max_width?: number;
-  max_height?: number;
-}): Promise<{ data: string; format: string; width: number; height: number } | { error: string }> {
-  const selector = options?.selector;
-  const format = options?.format ?? "png";
-  const quality = options?.quality ?? 0.92;
-  const scale = options?.scale ?? 1;
+export async function takeScreenshot(
+  selector?: string,
+  format?: "png" | "jpeg",
+  quality?: number,
+  scale?: number,
+  max_width?: number,
+  max_height?: number,
+): Promise<{ data: string; format: string; width: number; height: number } | { error: string }> {
+  const fmt = format ?? "png";
+  const qual = quality ?? 0.92;
+  const scl = scale ?? 1;
 
   const target = selector ? document.querySelector(selector) : document.body;
   if (!target) {
@@ -24,8 +23,8 @@ export async function takeScreenshot(options?: {
   try {
     const node = target as HTMLElement;
     const captureOptions = {
-      quality,
-      pixelRatio: scale,
+      quality: qual,
+      pixelRatio: scl,
       cacheBust: true,
       skipAutoScale: true,
       // Filter out the debugger overlay itself
@@ -35,7 +34,7 @@ export async function takeScreenshot(options?: {
     };
 
     let dataUrl: string;
-    if (format === "jpeg") {
+    if (fmt === "jpeg") {
       dataUrl = await toJpeg(node, captureOptions);
     } else {
       dataUrl = await toPng(node, captureOptions);
@@ -43,26 +42,24 @@ export async function takeScreenshot(options?: {
 
     // Get dimensions
     const rect = node.getBoundingClientRect();
-    let width = Math.round(rect.width * scale);
-    let height = Math.round(rect.height * scale);
+    let width = Math.round(rect.width * scl);
+    let height = Math.round(rect.height * scl);
 
     // Optionally resize if too large
-    const maxW = options?.max_width;
-    const maxH = options?.max_height;
-    if (maxW && width > maxW) {
-      const ratio = maxW / width;
-      width = maxW;
+    if (max_width && width > max_width) {
+      const ratio = max_width / width;
+      width = max_width;
       height = Math.round(height * ratio);
     }
-    if (maxH && height > maxH) {
-      const ratio = maxH / height;
-      height = maxH;
+    if (max_height && height > max_height) {
+      const ratio = max_height / height;
+      height = max_height;
       width = Math.round(width * ratio);
     }
 
     return {
       data: dataUrl,
-      format,
+      format: fmt,
       width,
       height,
     };

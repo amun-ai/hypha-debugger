@@ -3,19 +3,19 @@
  */
 import * as hyphaRpc from "hypha-rpc";
 import { DebugOverlay } from "./ui/overlay.js";
-import { getPageInfo, getConsoleLogs, installConsoleCapture } from "./services/info.js";
+import { getPageInfo, installConsoleCapture } from "./services/info.js";
 import {
   queryDom,
   clickElement,
   fillInput,
   scrollTo,
-  getComputedStyles,
-  getElementBounds,
+  getHtml,
 } from "./services/dom.js";
 import { takeScreenshot } from "./services/screenshot.js";
 import { executeScript } from "./services/execute.js";
-import { navigate, goBack, goForward, reload } from "./services/navigate.js";
+import { navigate } from "./services/navigate.js";
 import { getReactTree } from "./services/react.js";
+import { generateSkillMd } from "./services/skill.js";
 
 export interface DebuggerConfig {
   /** Hypha server URL. Required. */
@@ -98,104 +98,21 @@ export class HyphaDebugger {
 
       this.server = await connect(connectConfig);
 
-      // Wrap service functions with logging
-      const wrapFn = (fn: any, name: string) => {
-        const wrapped = async (...args: any[]) => {
-          this.overlay?.addLog(`${name}(${this.summarizeArgs(args)})`, "call");
-          try {
-            const result = await fn(...args);
-            const hasError =
-              result && typeof result === "object" && "error" in result;
-            if (hasError) {
-              this.overlay?.addLog(`${name}: ${result.error}`, "error");
-            } else {
-              this.overlay?.addLog(`${name} -> OK`, "result");
-            }
-            return result;
-          } catch (err: any) {
-            this.overlay?.addLog(`${name}: ${err.message}`, "error");
-            throw err;
-          }
-        };
-        // Preserve schema
-        if (fn.__schema__) {
-          (wrapped as any).__schema__ = fn.__schema__;
-        }
-        return wrapped;
-      };
-
       // Register debug service
-      const service: any = {
-        id: this.config.service_id,
-        name: this.config.service_name,
-        type: "debugger",
-        description:
-          "Remote web page debugger. Allows inspecting DOM, taking screenshots, executing JavaScript, and interacting with the page.",
-        config: {
-          visibility: this.config.visibility,
-        },
-        // Service functions
-        get_page_info: wrapFn(getPageInfo, "get_page_info"),
-        get_console_logs: wrapFn(getConsoleLogs, "get_console_logs"),
-        query_dom: wrapFn(queryDom, "query_dom"),
-        click_element: wrapFn(clickElement, "click_element"),
-        fill_input: wrapFn(fillInput, "fill_input"),
-        scroll_to: wrapFn(scrollTo, "scroll_to"),
-        get_computed_styles: wrapFn(getComputedStyles, "get_computed_styles"),
-        get_element_bounds: wrapFn(getElementBounds, "get_element_bounds"),
-        take_screenshot: wrapFn(takeScreenshot, "take_screenshot"),
-        execute_script: wrapFn(executeScript, "execute_script"),
-        navigate: wrapFn(navigate, "navigate"),
-        go_back: wrapFn(goBack, "go_back"),
-        go_forward: wrapFn(goForward, "go_forward"),
-        reload: wrapFn(reload, "reload"),
-        get_react_tree: wrapFn(getReactTree, "get_react_tree"),
-      };
-
-      this.serviceInfo = await this.server.registerService(service);
-
-      // Update UI
-      const workspace = this.server.config.workspace;
-      const fullServiceId = this.serviceInfo.id ?? this.config.service_id;
-
-      // Generate a token for remote HTTP access
-      const sessionToken = await this.server.generateToken();
-
-      // Build the HTTP service URL
-      const serviceUrl = this.buildServiceUrl(fullServiceId);
-
-      if (this.overlay) {
-        this.overlay.setStatus("connected");
-        this.overlay.setInfo({
-          Status: "Connected",
-          Server: this.config.server_url,
-        });
-        this.overlay.setServiceUrl(serviceUrl, sessionToken);
-        this.overlay.addLog("Service registered", "result");
-      }
-
-      console.log(`[hypha-debugger] Connected to ${this.config.server_url}`);
-      console.log(`[hypha-debugger] Service ID: ${fullServiceId}`);
-      console.log(`[hypha-debugger] Service URL: ${serviceUrl}`);
-      console.log(`[hypha-debugger] Token: ${sessionToken}`);
-      console.log(
-        `[hypha-debugger] Test it:\n  curl '${serviceUrl}/get_page_info' -H 'Authorization: Bearer ${sessionToken}'`
+      this.serviceInfo = await this.server.registerService(
+        this.buildServiceDefinition()
       );
 
-      // Build session object
-      const session: DebugSession = {
-        service_id: fullServiceId,
-        workspace,
-        server: this.server,
-        service_url: serviceUrl,
-        token: sessionToken,
-        destroy: () => this.destroy(),
-      };
+      // Update overlay and build session
+      const session = await this.updateSession();
+
+      if (this.overlay) {
+        this.overlay.addLog("Service registered", "result");
+      }
 
       // Store globally
       w.__HYPHA_DEBUGGER__ = w.__HYPHA_DEBUGGER__ ?? {};
       w.__HYPHA_DEBUGGER__.instance = this;
-      w.__HYPHA_DEBUGGER__.session = session;
 
       return session;
     } catch (err: any) {
@@ -228,30 +145,204 @@ export class HyphaDebugger {
     }
   }
 
+  /**
+   * Generate token, build service URL, update overlay instructions, and
+   * return a DebugSession.
+   */
+  private async updateSession(extra?: Record<string, string>): Promise<DebugSession> {
+    const fullServiceId = this.serviceInfo?.id ?? this.config.service_id;
+    const sessionToken = await this.server.generateToken();
+    const serviceUrl = this.buildServiceUrl(fullServiceId);
+    const workspace = this.server.config?.workspace ?? "";
+
+    if (this.overlay) {
+      this.overlay.setStatus("connected");
+      this.overlay.setInfo({
+        Status: "Connected",
+        Server: this.config.server_url,
+        ...extra,
+      });
+      this.overlay.setInstructions(
+        this.buildInstructionBlock(serviceUrl, sessionToken)
+      );
+    }
+
+    console.log(`[hypha-debugger] Service URL: ${serviceUrl}`);
+    console.log(`[hypha-debugger] Token: ${sessionToken}`);
+    console.log(
+      `[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info?_mode=last' -H 'Authorization: Bearer ${sessionToken}'`
+    );
+
+    const session: DebugSession = {
+      service_id: fullServiceId,
+      workspace,
+      server: this.server,
+      service_url: serviceUrl,
+      token: sessionToken,
+      destroy: () => this.destroy(),
+    };
+
+    // Always update global session
+    const w = window as any;
+    w.__HYPHA_DEBUGGER__ = w.__HYPHA_DEBUGGER__ ?? {};
+    w.__HYPHA_DEBUGGER__.session = session;
+
+    return session;
+  }
+
+  /**
+   * Build a stable, predictable service URL.
+   * Strips the clientId prefix so the URL uses only the bare service name.
+   * Callers append ?_mode=last to resolve the most recent instance.
+   */
   private buildServiceUrl(serviceId: string): string {
     const base = this.config.server_url.replace(/\/+$/, "");
-    // serviceId format: "workspace/clientId:svcName"
     const slashIdx = serviceId.indexOf("/");
     if (slashIdx !== -1) {
       const workspace = serviceId.substring(0, slashIdx);
       const svcPart = serviceId.substring(slashIdx + 1);
-      return `${base}/${workspace}/services/${svcPart}`;
+      // Strip clientId: "abc123:web-debugger" → "web-debugger"
+      const colonIdx = svcPart.indexOf(":");
+      const svcName = colonIdx !== -1 ? svcPart.substring(colonIdx + 1) : svcPart;
+      return `${base}/${workspace}/services/${svcName}`;
     }
     return `${base}/services/${serviceId}`;
   }
 
-  private getConnectToServer(): any {
-    // Prefer the static import; fall back to global for UMD/script-tag usage
-    const connect = (hyphaRpc as any).connectToServer;
-    if (connect) return connect;
+  private getHyphaModule(): any {
+    // Check the static import (works when hypha-rpc is bundled or npm-installed)
+    if ((hyphaRpc as any).connectToServer) return hyphaRpc;
+    // hypha-rpc re-exports under a namespace
+    if ((hyphaRpc as any).hyphaWebsocketClient?.connectToServer)
+      return (hyphaRpc as any).hyphaWebsocketClient;
+    // Fall back to global (when hypha-rpc loaded via separate script tag)
     const w = window as any;
-    if (w.hyphaWebsocketClient?.connectToServer) {
-      return w.hyphaWebsocketClient.connectToServer;
-    }
+    if (w.hyphaWebsocketClient?.connectToServer) return w.hyphaWebsocketClient;
     throw new Error(
-      "hypha-rpc not found. Install it via npm or include the script tag: " +
+      "hypha-rpc not found. Install it via npm or load it via: " +
         '<script src="https://cdn.jsdelivr.net/npm/hypha-rpc@0.20.97/dist/hypha-rpc-websocket.min.js"></script>'
     );
+  }
+
+  private getConnectToServer(): any {
+    return this.getHyphaModule().connectToServer;
+  }
+
+  private buildServiceDefinition(): any {
+    return {
+      id: this.config.service_id,
+      name: this.config.service_name,
+      type: "debugger",
+      description:
+        "Remote web page debugger. Allows inspecting DOM, taking screenshots, executing JavaScript, and interacting with the page.",
+      config: {
+        visibility: this.config.visibility,
+      },
+      get_page_info: this.wrapFn(getPageInfo, "get_page_info"),
+      get_html: this.wrapFn(getHtml, "get_html"),
+      query_dom: this.wrapFn(queryDom, "query_dom"),
+      click_element: this.wrapFn(clickElement, "click_element"),
+      fill_input: this.wrapFn(fillInput, "fill_input"),
+      scroll_to: this.wrapFn(scrollTo, "scroll_to"),
+      take_screenshot: this.wrapFn(takeScreenshot, "take_screenshot"),
+      execute_script: this.wrapFn(executeScript, "execute_script"),
+      navigate: this.wrapFn(navigate, "navigate"),
+      get_react_tree: this.wrapFn(getReactTree, "get_react_tree"),
+      get_skill_md: this.wrapFn(this.createGetSkillMd(), "get_skill_md"),
+    };
+  }
+
+  private createGetSkillMd(): any {
+    const fn = () => {
+      // Build a schema-only map (avoid calling buildServiceDefinition which would recurse)
+      const schemaFns: Record<string, any> = {};
+      const fns: Record<string, any> = {
+        get_page_info: getPageInfo, get_html: getHtml,
+        query_dom: queryDom, click_element: clickElement, fill_input: fillInput,
+        scroll_to: scrollTo, take_screenshot: takeScreenshot,
+        execute_script: executeScript, navigate: navigate,
+        get_react_tree: getReactTree,
+      };
+      for (const [name, f] of Object.entries(fns)) {
+        if ((f as any).__schema__) schemaFns[name] = f;
+      }
+      const serviceUrl = this.serviceInfo
+        ? this.buildServiceUrl(this.serviceInfo.id ?? this.config.service_id)
+        : "{SERVICE_URL}";
+      return generateSkillMd(schemaFns, serviceUrl);
+    };
+    fn.__schema__ = {
+      name: "getSkillMd",
+      description:
+        "Get the SKILL.md document describing all available debugger functions, their parameters, and usage examples. Follows the agentskills.io specification.",
+      parameters: {
+        type: "object",
+        properties: {},
+      },
+    };
+    return fn;
+  }
+
+  /** Build the instruction block for the overlay panel. */
+  private buildInstructionBlock(serviceUrl: string, token: string): string {
+    return [
+      `SERVICE_URL="${serviceUrl}"`,
+      `TOKEN="${token}"`,
+      ``,
+      `# Quick test:`,
+      `curl "$SERVICE_URL/get_page_info?_mode=last" -H "Authorization: Bearer $TOKEN"`,
+      ``,
+      `# Full API docs:`,
+      `curl "$SERVICE_URL/get_skill_md?_mode=last" -H "Authorization: Bearer $TOKEN"`,
+    ].join("\n");
+  }
+
+  /** Wrap a service function with logging and kwargs-to-positional-args support. */
+  private wrapFn(fn: any, name: string): any {
+    const wrapped = async (...args: any[]) => {
+      // Hypha's HTTP API calls with keyword arguments (**kwargs),
+      // which arrive on the JS side as a single object argument.
+      // Destructure into positional args based on schema properties.
+      if (
+        args.length === 1 &&
+        args[0] &&
+        typeof args[0] === "object" &&
+        !Array.isArray(args[0]) &&
+        fn.__schema__?.parameters?.properties
+      ) {
+        const kwargs = args[0];
+        const props = fn.__schema__.parameters.properties;
+        const paramNames = Object.keys(props);
+        // Check if any kwargs key matches a schema property name
+        const hasMatchingKey = paramNames.some((p) => p in kwargs);
+        if (hasMatchingKey) {
+          args = paramNames.map((p) => kwargs[p]);
+          while (args.length > 0 && args[args.length - 1] === undefined) {
+            args.pop();
+          }
+        }
+      }
+
+      this.overlay?.addLog(`${name}(${this.summarizeArgs(args)})`, "call");
+      try {
+        const result = await fn(...args);
+        const hasError =
+          result && typeof result === "object" && "error" in result;
+        if (hasError) {
+          this.overlay?.addLog(`${name}: ${result.error}`, "error");
+        } else {
+          this.overlay?.addLog(`${name} -> OK`, "result");
+        }
+        return result;
+      } catch (err: any) {
+        this.overlay?.addLog(`${name}: ${err.message}`, "error");
+        throw err;
+      }
+    };
+    if (fn.__schema__) {
+      (wrapped as any).__schema__ = fn.__schema__;
+    }
+    return wrapped;
   }
 
   private summarizeArgs(args: any[]): string {

@@ -1,258 +1,169 @@
 # Hypha Debugger
 
-A lightweight, injectable debugger for web pages and Python processes, powered by [Hypha](https://github.com/amun-ai/hypha) RPC. Designed for AI agent workflows — inject a debugger, get a URL, call it remotely.
+Remote debugger for web pages and Python processes. Inject it into any running target and control it remotely via HTTP API — designed for AI agents.
 
-**No browser extension required.** Just import and start.
+No browser extension needed. One script tag or one function call to start.
 
-```
-┌─────────────────────────┐         ┌──────────────┐         ┌─────────────────────────┐
-│  Target (Browser/Python) │ ──WS──▶ │ Hypha Server │ ◀──WS── │  Remote Client           │
-│                          │         │              │         │  (curl / Python / Agent)  │
-│  - Registers debug svc   │         │  Routes RPC  │         │  - Calls debug functions  │
-│  - Executes remote code  │         │  messages    │         │  - Takes screenshots      │
-│  - Returns results       │         │              │         │  - Queries DOM/state      │
-└─────────────────────────┘         └──────────────┘         └─────────────────────────┘
-```
+## Quick Start (JavaScript)
 
-## JavaScript (Browser)
-
-[![npm](https://img.shields.io/npm/v/hypha-debugger)](https://www.npmjs.com/package/hypha-debugger)
-
-Inject into any web page to enable remote DOM inspection, screenshots, JavaScript execution, and React component tree inspection.
-
-### Quick Start
-
-**Via CDN (easiest):**
+Add one script tag to any HTML page:
 
 ```html
-<script src="https://cdn.jsdelivr.net/npm/hypha-rpc@0.20.97/dist/hypha-rpc-websocket.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js"></script>
-<script>
-  hyphaDebugger.startDebugger({ server_url: 'https://hypha.aicell.io' });
-</script>
 ```
 
-**Via npm:**
+That's it. The debugger auto-connects to `https://hypha.aicell.io` and shows a floating bug icon. Click it to see the service URL, token, and instructions.
 
-```bash
-npm install hypha-debugger hypha-rpc
+### Two modes of operation
+
+**Manual mode** — a human opens the page, clicks the floating bug icon, and copies the service URL and token:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js"></script>
 ```
+
+**Agent mode** — an AI agent embeds its token and workspace directly, so the service URL is fully predictable:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js"
+  data-server-url="https://hypha.aicell.io"
+  data-token="YOUR_TOKEN"
+  data-workspace="YOUR_WORKSPACE"></script>
+```
+
+When the agent knows the workspace and service ID, the service URL is:
+```
+https://hypha.aicell.io/{workspace}/services/web-debugger/{function}?_mode=last
+```
+
+### Configure via data attributes
+
+| Attribute | Description | Default |
+|-----------|-------------|---------|
+| `data-server-url` | Hypha server URL | `https://hypha.aicell.io` |
+| `data-token` | Authentication token | (anonymous) |
+| `data-workspace` | Workspace name | (auto-assigned) |
+| `data-service-id` | Service ID | `web-debugger` |
+| `data-no-ui` | Hide the floating overlay | (shown) |
+| `data-manual` | Disable auto-start | (auto-starts) |
+
+### Programmatic usage
 
 ```javascript
 import { startDebugger } from 'hypha-debugger';
 
 const session = await startDebugger({
   server_url: 'https://hypha.aicell.io',
+  token: 'YOUR_TOKEN',        // optional
+  workspace: 'YOUR_WORKSPACE', // optional
 });
-
-console.log(session.service_url); // HTTP endpoint for remote calls
-console.log(session.token);       // JWT token for authentication
+console.log(session.service_url, session.token);
 ```
 
-### What You Get
-
-After starting, the debugger prints:
-
-```
-[hypha-debugger] Connected to https://hypha.aicell.io
-[hypha-debugger] Service URL: https://hypha.aicell.io/ws-xxx/services/clientId:web-debugger
-[hypha-debugger] Token: eyJ...
-[hypha-debugger] Test it:
-  curl 'https://hypha.aicell.io/ws-xxx/services/clientId:web-debugger/get_page_info' -H 'Authorization: Bearer eyJ...'
-```
-
-A floating debug overlay (🐛) appears on the page with connection status, service URL (with copy button), and a live log of remote operations.
-
-### Service Functions (JavaScript)
-
-All functions are callable via the HTTP URL or Hypha RPC:
-
-| Function | Description |
-|----------|-------------|
-| `get_page_info()` | URL, title, viewport size, detected frameworks, performance timing |
-| `get_console_logs(level?, limit?)` | Captured console output (log/warn/error/info) |
-| `query_dom(selector, limit?)` | Query elements by CSS selector — returns tag, text, attributes, bounds |
-| `click_element(selector)` | Click an element |
-| `fill_input(selector, value)` | Set value of input/textarea/select (works with React) |
-| `scroll_to(target)` | Scroll to element (CSS selector) or position ({x, y}) |
-| `get_computed_styles(selector, properties?)` | Get computed CSS styles |
-| `get_element_bounds(selector)` | Get bounding rectangle and visibility |
-| `take_screenshot(selector?, format?, scale?)` | Capture page/element as base64 PNG/JPEG |
-| `execute_script(code, timeout_ms?)` | Execute arbitrary JavaScript, return result |
-| `navigate(url)` | Navigate to URL |
-| `go_back()` / `go_forward()` / `reload()` | Browser history navigation |
-| `get_react_tree(selector?, max_depth?)` | Inspect React component tree (fiber-based) — names, props, state |
-
-### Calling via curl
-
-```bash
-# Get page info
-curl 'SERVICE_URL/get_page_info' -H 'Authorization: Bearer TOKEN'
-
-# Take a screenshot
-curl 'SERVICE_URL/take_screenshot' -H 'Authorization: Bearer TOKEN'
-
-# Execute JavaScript
-curl -X POST 'SERVICE_URL/execute_script' \
-  -H 'Authorization: Bearer TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{"code": "document.title"}'
-
-# Query DOM
-curl -X POST 'SERVICE_URL/query_dom' \
-  -H 'Authorization: Bearer TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{"selector": "button"}'
-
-# Click a button
-curl -X POST 'SERVICE_URL/click_element' \
-  -H 'Authorization: Bearer TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{"selector": "#submit-btn"}'
-```
-
-### Calling via Python
-
-```python
-from hypha_rpc import connect_to_server
-
-server = await connect_to_server({
-    "server_url": "https://hypha.aicell.io",
-    "workspace": "WORKSPACE",
-    "token": "TOKEN",
-})
-debugger = await server.get_service("web-debugger")
-
-info = await debugger.get_page_info()
-screenshot = await debugger.take_screenshot()
-result = await debugger.execute_script(code="document.title")
-tree = await debugger.get_react_tree()
-```
-
-### Configuration
-
-```javascript
-await startDebugger({
-  server_url: 'https://hypha.aicell.io', // Required
-  workspace: 'my-workspace',              // Optional, auto-assigned
-  token: 'jwt-token',                     // Optional
-  service_id: 'web-debugger',             // Default: 'web-debugger'
-  service_name: 'Web Debugger',           // Default: 'Web Debugger'
-  show_ui: true,                          // Default: true (floating overlay)
-  visibility: 'public',                   // 'public' | 'protected' | 'unlisted'
-});
-```
-
----
-
-## Python
-
-[![PyPI](https://img.shields.io/pypi/v/hypha-debugger)](https://pypi.org/project/hypha-debugger/)
-
-Inject into any Python process to enable remote code execution, variable inspection, file browsing, and process monitoring.
-
-### Quick Start
+## Quick Start (Python)
 
 ```bash
 pip install hypha-debugger
 ```
 
-**Async:**
+### Sync (scripts, notebooks)
+
+```python
+from hypha_debugger import start_debugger_sync
+
+session = start_debugger_sync(
+    server_url='https://hypha.aicell.io',
+    token='YOUR_TOKEN',  # optional
+)
+print(session.service_url, session.token)
+# Runs in background thread, main thread stays free
+```
+
+### Async
 
 ```python
 import asyncio
 from hypha_debugger import start_debugger
 
 async def main():
-    session = await start_debugger(server_url="https://hypha.aicell.io")
-    print(session.service_url)  # HTTP endpoint
-    print(session.token)        # JWT token
+    session = await start_debugger(
+        server_url='https://hypha.aicell.io',
+        token='YOUR_TOKEN',  # optional
+    )
+    print(session.service_url, session.token)
     await session.serve_forever()
 
 asyncio.run(main())
 ```
 
-**Sync (scripts, notebooks):**
+## Remote Control via HTTP
 
-```python
-from hypha_debugger import start_debugger_sync
+Once the debugger is running, call its functions via curl. Always append `?_mode=last` to ensure you hit the most recent debugger instance:
 
-session = start_debugger_sync(server_url="https://hypha.aicell.io")
-# Debugger runs in background, main thread continues
-print(session.service_url)
+```bash
+# Get page info (optionally with console logs)
+curl "$SERVICE_URL/get_page_info?_mode=last" -H "Authorization: Bearer $TOKEN"
+
+# Get page HTML
+curl "$SERVICE_URL/get_html?_mode=last" -H "Authorization: Bearer $TOKEN"
+
+# Query DOM elements (JS only)
+curl -X POST "$SERVICE_URL/query_dom?_mode=last" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"selector": "button"}'
+
+# Take a screenshot (JS only)
+curl "$SERVICE_URL/take_screenshot?_mode=last" -H "Authorization: Bearer $TOKEN"
+
+# Execute code
+curl -X POST "$SERVICE_URL/execute_script?_mode=last" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"code": "return document.title"}'
+
+# Get full API docs (auto-generated from schemas)
+curl "$SERVICE_URL/get_skill_md?_mode=last" -H "Authorization: Bearer $TOKEN"
 ```
 
-### What You Get
+The `_mode=last` parameter tells Hypha to always route to the most recently registered service instance, even if stale sessions exist in the workspace.
 
-```
-[hypha-debugger] Connected to https://hypha.aicell.io
-[hypha-debugger] Service URL: https://hypha.aicell.io/ws-xxx/services/clientId:py-debugger
-[hypha-debugger] Token: eyJ...
-[hypha-debugger] Test it:
-  curl 'https://hypha.aicell.io/ws-xxx/services/clientId:py-debugger/get_process_info' -H 'Authorization: Bearer eyJ...'
-```
+## Available Functions
 
-### Service Functions (Python)
+### JavaScript
 
 | Function | Description |
 |----------|-------------|
-| `get_process_info()` | PID, CWD, Python version, hostname, platform, memory usage |
-| `execute_code(code, namespace?)` | Execute arbitrary Python code, return stdout/stderr/result |
-| `get_variable(name, namespace?)` | Inspect a variable — type, value, shape (for numpy), keys (for dicts) |
-| `list_variables(namespace?, filter?)` | List variables in scope |
-| `get_stack_trace()` | Stack trace of all threads |
-| `list_files(path?, pattern?)` | List files in directory (sandboxed to CWD) |
-| `read_file(path, max_lines?, encoding?)` | Read a file (sandboxed to CWD) |
-| `get_installed_packages(filter?)` | List installed pip packages |
+| `get_page_info` | URL, title, viewport, user agent, console logs, performance timing |
+| `get_html` | Get page or element HTML content |
+| `query_dom` | Query elements by CSS selector |
+| `click_element` | Click an element |
+| `fill_input` | Set input/textarea/select value (React-compatible) |
+| `scroll_to` | Scroll to element or position |
+| `take_screenshot` | Capture page/element as base64 PNG/JPEG |
+| `execute_script` | Run arbitrary JavaScript |
+| `navigate` | Navigate to URL |
+| `get_react_tree` | Inspect React component tree, props, and state |
+| `get_skill_md` | Get full API documentation |
 
-### Calling via curl
+### Python
 
-```bash
-# Get process info
-curl 'SERVICE_URL/get_process_info' -H 'Authorization: Bearer TOKEN'
+| Function | Description |
+|----------|-------------|
+| `get_process_info` | PID, CWD, Python version, platform, memory |
+| `execute_code` | Run arbitrary Python code |
+| `get_variable` | Inspect a variable |
+| `list_variables` | List variables in scope |
+| `get_stack_trace` | Current stack trace |
+| `list_files` | List directory contents (sandboxed) |
+| `read_file` | Read a file (sandboxed) |
+| `get_installed_packages` | List pip packages |
 
-# Execute Python code
-curl -X POST 'SERVICE_URL/execute_code' \
-  -H 'Authorization: Bearer TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{"code": "2 + 2"}'
+## For AI Agents
 
-# List files
-curl 'SERVICE_URL/list_files' -H 'Authorization: Bearer TOKEN'
+Call `get_skill_md` to get a complete API reference with parameter details and curl examples. The response follows the [agentskills.io](https://agentskills.io) specification.
 
-# Read a file
-curl -X POST 'SERVICE_URL/read_file' \
-  -H 'Authorization: Bearer TOKEN' \
-  -H 'Content-Type: application/json' \
-  -d '{"path": "main.py"}'
-```
-
-### Calling via Python (remote client)
-
-```python
-from hypha_rpc import connect_to_server
-
-server = await connect_to_server({
-    "server_url": "https://hypha.aicell.io",
-    "workspace": "WORKSPACE",
-    "token": "TOKEN",
-})
-debugger = await server.get_service("py-debugger")
-
-info = await debugger.get_process_info()
-result = await debugger.execute_code(code="import sys; sys.version")
-files = await debugger.list_files()
-```
-
----
-
-## How It Works
-
-1. Your target (browser page or Python process) connects to a [Hypha server](https://github.com/amun-ai/hypha) via WebSocket
-2. It registers an RPC service with schema-annotated functions
-3. The debugger prints a **Service URL** and **Token**
-4. Remote clients call service functions via HTTP REST or Hypha RPC WebSocket
-5. All functions have JSON Schema annotations, making them compatible with LLM/AI agent tool calling
+The floating overlay includes a copyable instruction block with the service URL, token, and a pointer to `get_skill_md` for full docs.
 
 ## License
 

@@ -42,9 +42,9 @@ function elementToInfo(el: Element): ElementInfo {
 
 export function queryDom(
   selector: string,
-  options?: { limit?: number; include_text?: boolean }
+  limit?: number,
 ): ElementInfo[] {
-  const limit = options?.limit ?? 20;
+  limit = limit ?? 20;
   const elements = document.querySelectorAll(selector);
   const results: ElementInfo[] = [];
   for (let i = 0; i < Math.min(elements.length, limit); i++) {
@@ -294,5 +294,53 @@ getElementBounds.__schema__ = {
       },
     },
     required: ["selector"],
+  },
+};
+
+export function getHtml(
+  selector?: string,
+  outer?: boolean,
+  max_length?: number,
+): { html: string; length: number; truncated: boolean } | { error: string } {
+  const useOuter = outer ?? true;
+  const maxLen = max_length ?? 50000;
+
+  const el = selector ? document.querySelector(selector) : document.documentElement;
+  if (!el) {
+    return { error: `No element found for selector: ${selector}` };
+  }
+
+  const raw = useOuter ? el.outerHTML : el.innerHTML;
+  const truncated = raw.length > maxLen;
+  return {
+    html: truncated ? raw.slice(0, maxLen) : raw,
+    length: raw.length,
+    truncated,
+  };
+}
+
+getHtml.__schema__ = {
+  name: "getHtml",
+  description:
+    "Get the HTML content of the page or a specific element. Returns outerHTML by default. Useful for understanding page structure.",
+  parameters: {
+    type: "object",
+    properties: {
+      selector: {
+        type: "string",
+        description:
+          "CSS selector of the element. Omit to get the full page HTML.",
+      },
+      outer: {
+        type: "boolean",
+        description:
+          "If true (default), return outerHTML (includes the element itself). If false, return innerHTML (children only).",
+      },
+      max_length: {
+        type: "number",
+        description:
+          "Maximum character length of the returned HTML. Default: 50000. Result will be truncated if longer.",
+      },
+    },
   },
 };

@@ -4,9 +4,9 @@
 
 export async function executeScript(
   code: string,
-  options?: { timeout_ms?: number }
+  timeout_ms?: number,
 ): Promise<{ result: any; type: string } | { error: string }> {
-  const timeoutMs = options?.timeout_ms ?? 10000;
+  const timeoutMs = timeout_ms ?? 10000;
 
   try {
     const result = await Promise.race([

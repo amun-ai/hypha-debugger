@@ -45,8 +45,8 @@ export const overlayStyles = `
 
   .debugger-panel {
     display: none;
-    width: 320px;
-    max-height: 420px;
+    width: 380px;
+    max-height: 520px;
     background: #1e1e2e;
     color: #cdd6f4;
     border-radius: 8px;
@@ -119,7 +119,7 @@ export const overlayStyles = `
     padding: 10px 12px;
     overflow-y: auto;
     flex: 1;
-    max-height: 340px;
+    max-height: 440px;
   }
 
   .info-row {
@@ -143,10 +143,17 @@ export const overlayStyles = `
     font-size: 11px;
   }
 
-  .url-section {
+  .instructions-section {
     margin-top: 8px;
     padding-top: 6px;
     border-top: 1px solid #313244;
+  }
+
+  .instructions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
   }
 
   .url-label {
@@ -157,25 +164,19 @@ export const overlayStyles = `
     margin-bottom: 3px;
   }
 
-  .url-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    background: #313244;
-    border-radius: 3px;
-    padding: 4px 6px;
-  }
-
-  .url-text {
-    flex: 1;
+  .instructions-block {
     font-family: 'SF Mono', Monaco, Consolas, monospace;
     font-size: 10px;
-    color: #89b4fa;
+    color: #a6e3a1;
+    background: #11111b;
+    border: 1px solid #313244;
+    border-radius: 4px;
+    padding: 8px;
+    white-space: pre-wrap;
     word-break: break-all;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.5;
   }
 
   .copy-btn {

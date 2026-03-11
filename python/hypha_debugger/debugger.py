@@ -15,6 +15,7 @@ from hypha_debugger.services.inspect_vars import (
     get_stack_trace,
 )
 from hypha_debugger.services.filesystem import list_files, read_file, write_file
+from hypha_debugger.services.source import get_source, get_skill_md
 
 logger = logging.getLogger("hypha_debugger")
 
@@ -67,6 +68,8 @@ def _build_instruction_block(service_url: str, token: str = "") -> str:
         "#   read_file           - Read file content (with offset/limit)",
         "#   write_file          - Write/append to a file",
         "#   get_installed_packages - List pip packages",
+        "#   get_source           - Get debugger source code (for self-inspection)",
+        "#   get_skill_md         - Get full API docs as Markdown",
         "#",
         "# POST endpoints accept JSON body with parameter names as keys.",
         "",
@@ -96,6 +99,9 @@ def _build_instruction_block(service_url: str, token: str = "") -> str:
         f'curl -X POST "$SERVICE_URL/read_file"{auth}'
         ' -H "Content-Type: application/json"'
         " -d '{\"path\": \"hello.txt\"}'",
+        "",
+        "# Get full API documentation:",
+        f'curl "$SERVICE_URL/get_skill_md"{auth}',
     ]
     return "\n".join(lines)
 
@@ -272,6 +278,8 @@ async def start_debugger(
         "list_files": list_files,
         "read_file": read_file,
         "write_file": write_file,
+        "get_source": get_source,
+        "get_skill_md": get_skill_md,
     }
 
     svc_info = await server.register_service(service)
@@ -353,6 +361,8 @@ def start_debugger_sync(
         "list_files": list_files,
         "read_file": read_file,
         "write_file": write_file,
+        "get_source": get_source,
+        "get_skill_md": get_skill_md,
     }
 
     svc_info = server.register_service(service)

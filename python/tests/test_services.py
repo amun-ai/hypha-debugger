@@ -225,6 +225,50 @@ def test_instruction_block_with_token():
     assert "Authorization" in block
 
 
+# --- source ---
+
+def test_get_source_list_modules():
+    from hypha_debugger.services.source import get_source
+    result = get_source("")
+    assert "modules" in result
+    assert "services.execute" in result["modules"]
+    assert "services.filesystem" in result["modules"]
+    assert "debugger" in result["modules"]
+
+
+def test_get_source_module():
+    from hypha_debugger.services.source import get_source
+    result = get_source("services.execute")
+    assert "source" in result
+    assert "execute_code" in result["source"]
+    assert result["lines"] > 10
+
+
+def test_get_source_unknown():
+    from hypha_debugger.services.source import get_source
+    result = get_source("nonexistent")
+    assert "error" in result
+    assert "available" in result
+
+
+def test_get_skill_md():
+    from hypha_debugger.services.source import get_skill_md
+    md = get_skill_md()
+    assert isinstance(md, str)
+    assert "execute_code" in md
+    assert "write_file" in md
+    assert "get_source" in md
+    assert "get_skill_md" in md
+    assert "SERVICE_URL" in md
+
+
+def test_instruction_block_includes_new_functions():
+    from hypha_debugger.debugger import _build_instruction_block
+    block = _build_instruction_block("https://example.com/ws/services/py-debugger-abc")
+    assert "get_source" in block
+    assert "get_skill_md" in block
+
+
 def test_debug_session_print_instructions(capsys):
     from hypha_debugger.debugger import DebugSession
     session = DebugSession(

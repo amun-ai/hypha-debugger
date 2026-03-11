@@ -54,24 +54,9 @@ def _build_instruction_block(service_url: str, token: str = "") -> str:
     auth = f' -H "Authorization: Bearer $TOKEN"' if token else ""
     lines = [
         "# Hypha Remote Debugger — Python Process",
-        "# A debugger is attached to a running Python process.",
-        "# You can remotely execute code, read/write files, inspect variables,",
-        "# and query process info via the HTTP API below.",
-        "#",
-        "# Available functions:",
-        "#   get_process_info    - PID, Python version, CWD, platform, memory",
-        "#   execute_code        - Run Python code (persistent REPL, auto-captures last expr)",
-        "#   get_variable        - Inspect a variable by name",
-        "#   list_variables      - List variables in a namespace",
-        "#   get_stack_trace     - Stack traces of all threads",
-        "#   list_files          - List directory contents",
-        "#   read_file           - Read file content (with offset/limit)",
-        "#   write_file          - Write/append to a file",
-        "#   get_installed_packages - List pip packages",
-        "#   get_source           - Get debugger source code (for self-inspection)",
-        "#   get_skill_md         - Get full API docs as Markdown",
-        "#",
-        "# POST endpoints accept JSON body with parameter names as keys.",
+        "# A remote debugger is attached to a running Python process.",
+        "# You can execute code, read/write files, inspect variables, and more.",
+        "# Call get_skill_md for full API docs with all available functions.",
         "",
         f'SERVICE_URL="{service_url}"',
     ]
@@ -79,28 +64,12 @@ def _build_instruction_block(service_url: str, token: str = "") -> str:
         lines.append(f'TOKEN="{token}"')
     lines += [
         "",
-        "# Get process info (PID, Python version, CWD, memory):",
-        f'curl "$SERVICE_URL/get_process_info"{auth}',
-        "",
-        "# Execute Python code (timeout default 30s):",
+        "# Execute Python code:",
         f'curl -X POST "$SERVICE_URL/execute_code"{auth}'
         ' -H "Content-Type: application/json"'
         " -d '{\"code\": \"import sys; sys.version\"}'",
         "",
-        "# Write a file:",
-        f'curl -X POST "$SERVICE_URL/write_file"{auth}'
-        ' -H "Content-Type: application/json"'
-        " -d '{\"path\": \"hello.txt\", \"content\": \"Hello, world!\"}'",
-        "",
-        "# List files in working directory:",
-        f'curl "$SERVICE_URL/list_files"{auth}',
-        "",
-        "# Read a file:",
-        f'curl -X POST "$SERVICE_URL/read_file"{auth}'
-        ' -H "Content-Type: application/json"'
-        " -d '{\"path\": \"hello.txt\"}'",
-        "",
-        "# Get full API documentation:",
+        "# Get full API docs (all functions, parameters, examples):",
         f'curl "$SERVICE_URL/get_skill_md"{auth}',
     ]
     return "\n".join(lines)

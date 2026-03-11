@@ -255,7 +255,7 @@ def test_instruction_block_no_token():
     assert "TOKEN=" not in block
     assert "Authorization" not in block
     assert "execute_code" in block
-    assert "write_file" in block
+    assert "get_skill_md" in block
 
 
 def test_instruction_block_with_token():
@@ -302,11 +302,13 @@ def test_get_skill_md():
     assert "SERVICE_URL" in md
 
 
-def test_instruction_block_includes_new_functions():
+def test_instruction_block_concise():
     from hypha_debugger.debugger import _build_instruction_block
     block = _build_instruction_block("https://example.com/ws/services/py-debugger-abc")
-    assert "get_source" in block
     assert "get_skill_md" in block
+    # Should NOT have the verbose function list anymore
+    assert "get_variable" not in block
+    assert "list_files" not in block
 
 
 def test_debug_session_print_instructions(capsys):

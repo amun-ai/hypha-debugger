@@ -55,32 +55,43 @@ def _build_instruction_block(
 
     Returns a formatted string similar to the JS overlay instructions.
     """
+    auth_header = f' -H "Authorization: Bearer $TOKEN"' if require_token else ""
+    lines = [
+        "# Hypha Remote Debugger — Python Process",
+        "# A debugger is attached to a running Python process.",
+        "# You can remotely inspect variables, execute code, browse files,",
+        "# and query process info via the HTTP API below.",
+        "#",
+        "# Available functions: get_process_info, execute_code, get_variable,",
+        "#   list_variables, get_stack_trace, list_files, read_file, get_installed_packages",
+        "#",
+        "# All endpoints require ?_mode=last suffix. POST endpoints accept JSON body.",
+        "",
+        f'SERVICE_URL="{service_url}"',
+    ]
     if require_token:
-        return "\n".join([
-            f'SERVICE_URL="{service_url}"',
-            f'TOKEN="{token}"',
-            "",
-            "# Quick test:",
-            'curl "$SERVICE_URL/get_process_info?_mode=last" -H "Authorization: Bearer $TOKEN"',
-            "",
-            "# Execute code:",
-            "curl -X POST \"$SERVICE_URL/execute_code?_mode=last\" "
-            "-H \"Authorization: Bearer $TOKEN\" "
-            "-H \"Content-Type: application/json\" "
-            "-d '{\"code\": \"import sys; sys.version\"}'",
-        ])
-    else:
-        return "\n".join([
-            f'SERVICE_URL="{service_url}"',
-            "",
-            "# Quick test (no auth required — keep URL secret):",
-            'curl "$SERVICE_URL/get_process_info?_mode=last"',
-            "",
-            "# Execute code:",
-            "curl -X POST \"$SERVICE_URL/execute_code?_mode=last\" "
-            "-H \"Content-Type: application/json\" "
-            "-d '{\"code\": \"import sys; sys.version\"}'",
-        ])
+        lines.append(f'TOKEN="{token}"')
+    lines += [
+        "",
+        "# Get process info (PID, Python version, CWD, memory):",
+        f'curl "$SERVICE_URL/get_process_info?_mode=last"{auth_header}',
+        "",
+        "# Execute Python code remotely:",
+        f"curl -X POST \"$SERVICE_URL/execute_code?_mode=last\""
+        f"{auth_header}"
+        " -H \"Content-Type: application/json\""
+        " -d '{\"code\": \"import sys; sys.version\"}'",
+        "",
+        "# Inspect a variable:",
+        f"curl -X POST \"$SERVICE_URL/get_variable?_mode=last\""
+        f"{auth_header}"
+        " -H \"Content-Type: application/json\""
+        " -d '{\"name\": \"my_var\"}'",
+        "",
+        "# List files in working directory:",
+        f'curl "$SERVICE_URL/list_files?_mode=last"{auth_header}',
+    ]
+    return "\n".join(lines)
 
 
 def _print_session_info(
@@ -97,7 +108,14 @@ def _print_session_info(
     if require_token:
         print(f"[hypha-debugger] Token: {token}")
     print()
+    sep = "=" * 60
+    print(f"{sep}")
+    print("  Copy the text below to your AI agent")
+    print(f"{sep}")
+    print()
     print(_build_instruction_block(service_url, token, require_token))
+    print()
+    print(f"{sep}")
 
 
 @dataclass
@@ -120,7 +138,14 @@ class DebugSession:
         instructions = _build_instruction_block(
             self.service_url, self.token, bool(self.token)
         )
+        sep = "=" * 60
+        print(f"{sep}")
+        print("  Copy the text below to your AI agent")
+        print(f"{sep}")
+        print()
         print(instructions)
+        print()
+        print(f"{sep}")
         return instructions
 
     async def serve_forever(self):

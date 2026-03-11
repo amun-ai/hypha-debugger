@@ -12,5 +12,5 @@ Usage (sync):
 
 from hypha_debugger.debugger import start_debugger, start_debugger_sync, DebugSession
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __all__ = ["start_debugger", "start_debugger_sync", "DebugSession", "__version__"]

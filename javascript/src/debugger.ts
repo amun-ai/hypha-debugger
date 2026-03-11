@@ -326,30 +326,41 @@ export class HyphaDebugger {
 
   /** Build the instruction block for the overlay panel. */
   private buildInstructionBlock(serviceUrl: string, token: string): string {
+    const auth = token ? ` -H "Authorization: Bearer $TOKEN"` : "";
+    const lines = [
+      `# Hypha Remote Debugger — Web Page`,
+      `# A debugger is attached to a live web page.`,
+      `# You can remotely inspect the DOM, take screenshots, execute JavaScript,`,
+      `# click elements, fill inputs, and inspect React components via the HTTP API below.`,
+      `#`,
+      `# Available functions: get_page_info, get_html, query_dom, click_element,`,
+      `#   fill_input, scroll_to, take_screenshot, execute_script, navigate, get_react_tree`,
+      `#`,
+      `# All endpoints require ?_mode=last suffix. POST endpoints accept JSON body.`,
+      ``,
+      `SERVICE_URL="${serviceUrl}"`,
+    ];
     if (token) {
-      // Token-protected mode: callers must supply the Authorization header.
-      return [
-        `SERVICE_URL="${serviceUrl}"`,
-        `TOKEN="${token}"`,
-        ``,
-        `# Quick test:`,
-        `curl "$SERVICE_URL/get_page_info?_mode=last" -H "Authorization: Bearer $TOKEN"`,
-        ``,
-        `# Full API docs:`,
-        `curl "$SERVICE_URL/get_skill_md?_mode=last" -H "Authorization: Bearer $TOKEN"`,
-      ].join("\n");
-    } else {
-      // No-token mode: the URL itself is the secret (unlisted + unguessable id).
-      return [
-        `SERVICE_URL="${serviceUrl}"`,
-        ``,
-        `# Quick test (no auth required — keep URL secret):`,
-        `curl "$SERVICE_URL/get_page_info?_mode=last"`,
-        ``,
-        `# Full API docs:`,
-        `curl "$SERVICE_URL/get_skill_md?_mode=last"`,
-      ].join("\n");
+      lines.push(`TOKEN="${token}"`);
     }
+    lines.push(
+      ``,
+      `# Get page info (URL, title, viewport, frameworks):`,
+      `curl "$SERVICE_URL/get_page_info?_mode=last"${auth}`,
+      ``,
+      `# Take a screenshot:`,
+      `curl "$SERVICE_URL/take_screenshot?_mode=last"${auth}`,
+      ``,
+      `# Execute JavaScript remotely:`,
+      `curl -X POST "$SERVICE_URL/execute_script?_mode=last"${auth} -H "Content-Type: application/json" -d '{"code": "document.title"}'`,
+      ``,
+      `# Query DOM elements:`,
+      `curl -X POST "$SERVICE_URL/query_dom?_mode=last"${auth} -H "Content-Type: application/json" -d '{"selector": "button"}'`,
+      ``,
+      `# Full API docs (all functions with parameter schemas):`,
+      `curl "$SERVICE_URL/get_skill_md?_mode=last"${auth}`,
+    );
+    return lines.join("\n");
   }
 
   /** Wrap a service function with logging and kwargs-to-positional-args support. */

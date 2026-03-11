@@ -69,8 +69,11 @@ def main():
             stop.set()
 
         loop = asyncio.get_running_loop()
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, _signal_handler)
+        try:
+            for sig in (signal.SIGINT, signal.SIGTERM):
+                loop.add_signal_handler(sig, _signal_handler)
+        except NotImplementedError:
+            pass
 
         await stop.wait()
         print("\n[hypha-debugger] Shutting down...")

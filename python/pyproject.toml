@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hypha-debugger"
-version = "0.1.10"
+version = "0.1.11"
 description = "Injectable debugger for Python processes and AI agents, powered by Hypha RPC"
 readme = "README.md"
 license = {text = "MIT"}

@@ -1,182 +1,138 @@
 # Hypha Debugger
 
-Remote debugger for web pages and Python processes. Inject it into any running target and control it remotely via HTTP API — designed for AI agents.
+Remote debugger for web pages and Python processes — designed for AI agents. Inject it into any running target, then control it remotely via HTTP.
 
-No browser extension needed. One script tag or one function call to start.
+## JavaScript — Bookmarklet (any page, no install)
 
-## Quick Start (JavaScript)
+Create a bookmark with this URL to inject the debugger into **any web page**:
 
-Add one script tag to any HTML page:
+```
+javascript:void(function(){if(window.__HYPHA_DEBUGGER__?.instance)return alert('Debugger already running');var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js';document.head.appendChild(s)})()
+```
+
+Click the bookmarklet → a floating bug icon appears → click it to copy the service URL → paste into your AI agent.
+
+## Python — One command
+
+```bash
+pip install hypha-debugger
+hypha-debugger
+```
+
+Prints a service URL and instructions. Paste them into your AI agent.
+
+## Remote Control
+
+Use the service URL to call functions via HTTP:
+
+```bash
+# JavaScript
+curl "$SERVICE_URL/get_page_info"
+curl "$SERVICE_URL/take_screenshot"
+curl -X POST "$SERVICE_URL/execute_script" -H "Content-Type: application/json" -d '{"code": "return document.title"}'
+
+# Python
+curl "$SERVICE_URL/get_process_info"
+curl -X POST "$SERVICE_URL/execute_code" -H "Content-Type: application/json" -d '{"code": "import sys; sys.version"}'
+
+# Full API docs (both JS and Python)
+curl "$SERVICE_URL/get_skill_md"
+```
+
+The URL contains a unique random ID — no token needed. Keep the URL secret.
+
+---
+
+<details>
+<summary><strong>More ways to use (script tag, programmatic, config options)</strong></summary>
+
+### Script tag
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js"></script>
 ```
 
-That's it. The debugger auto-connects to `https://hypha.aicell.io` and shows a floating bug icon. Click it to see the service URL, token, and instructions.
+Auto-connects and shows a floating bug icon. Click it to see the service URL.
 
-### Two modes of operation
-
-**Manual mode** — a human opens the page, clicks the floating bug icon, and copies the service URL and token:
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js"></script>
-```
-
-**Agent mode** — an AI agent embeds its token and workspace directly, so the service URL is fully predictable:
+### With data attributes
 
 ```html
 <script src="https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js"
   data-server-url="https://hypha.aicell.io"
-  data-token="YOUR_TOKEN"
-  data-workspace="YOUR_WORKSPACE"></script>
+  data-workspace="MY_WORKSPACE"
+  data-token="MY_TOKEN"></script>
 ```
-
-When the agent knows the workspace and service ID, the service URL is:
-```
-https://hypha.aicell.io/{workspace}/services/web-debugger/{function}?_mode=last
-```
-
-### Configure via data attributes
 
 | Attribute | Description | Default |
 |-----------|-------------|---------|
 | `data-server-url` | Hypha server URL | `https://hypha.aicell.io` |
 | `data-token` | Authentication token | (anonymous) |
 | `data-workspace` | Workspace name | (auto-assigned) |
-| `data-service-id` | Service ID | `web-debugger` |
-| `data-no-ui` | Hide the floating overlay | (shown) |
-| `data-manual` | Disable auto-start | (auto-starts) |
+| `data-service-id` | Service ID | `web-debugger-<random>` |
+| `data-no-ui` | Hide floating overlay | (shown) |
+| `data-require-token` | Require token for callers | (not required) |
 
-### Programmatic usage
+### Programmatic (JavaScript)
 
 ```javascript
 import { startDebugger } from 'hypha-debugger';
-
-const session = await startDebugger({
-  server_url: 'https://hypha.aicell.io',
-  token: 'YOUR_TOKEN',        // optional
-  workspace: 'YOUR_WORKSPACE', // optional
-});
-console.log(session.service_url, session.token);
+const session = await startDebugger({ server_url: 'https://hypha.aicell.io' });
+console.log(session.service_url);
 ```
 
-## Quick Start (Python)
-
-```bash
-pip install hypha-debugger
-```
-
-### CLI (simplest)
-
-```bash
-# Start a debugger session and print instructions
-hypha-debugger
-
-# Or with options
-hypha-debugger --server-url https://hypha.aicell.io --service-id my-debugger
-
-# No-token mode (URL-secret, no auth needed)
-hypha-debugger --no-token
-```
-
-You can also run it as a module:
-
-```bash
-python -m hypha_debugger
-```
-
-### Sync (scripts, notebooks)
+### Programmatic (Python)
 
 ```python
-from hypha_debugger import start_debugger_sync
-
-session = start_debugger_sync(server_url='https://hypha.aicell.io')
-# Prints instructions automatically, or print them again:
-session.print_instructions()
-```
-
-### Async
-
-```python
-import asyncio
+# Async
 from hypha_debugger import start_debugger
+session = await start_debugger(server_url='https://hypha.aicell.io')
+session.print_instructions()
 
-async def main():
-    session = await start_debugger(server_url='https://hypha.aicell.io')
-    session.print_instructions()  # print instructions anytime
-    await session.serve_forever()
-
-asyncio.run(main())
+# Sync
+from hypha_debugger import start_debugger_sync
+session = start_debugger_sync(server_url='https://hypha.aicell.io')
 ```
 
-## Remote Control via HTTP
+</details>
 
-Once the debugger is running, call its functions via curl. Always append `?_mode=last` to ensure you hit the most recent debugger instance:
-
-```bash
-# Get page info (optionally with console logs)
-curl "$SERVICE_URL/get_page_info?_mode=last" -H "Authorization: Bearer $TOKEN"
-
-# Get page HTML
-curl "$SERVICE_URL/get_html?_mode=last" -H "Authorization: Bearer $TOKEN"
-
-# Query DOM elements (JS only)
-curl -X POST "$SERVICE_URL/query_dom?_mode=last" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"selector": "button"}'
-
-# Take a screenshot (JS only)
-curl "$SERVICE_URL/take_screenshot?_mode=last" -H "Authorization: Bearer $TOKEN"
-
-# Execute code
-curl -X POST "$SERVICE_URL/execute_script?_mode=last" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"code": "return document.title"}'
-
-# Get full API docs (auto-generated from schemas)
-curl "$SERVICE_URL/get_skill_md?_mode=last" -H "Authorization: Bearer $TOKEN"
-```
-
-The `_mode=last` parameter tells Hypha to always route to the most recently registered service instance, even if stale sessions exist in the workspace.
-
-## Available Functions
+<details>
+<summary><strong>Available functions</strong></summary>
 
 ### JavaScript
 
 | Function | Description |
 |----------|-------------|
-| `get_page_info` | URL, title, viewport, user agent, console logs, performance timing |
-| `get_html` | Get page or element HTML content |
+| `get_page_info` | URL, title, viewport, user agent, console logs |
+| `get_html` | Page or element HTML content |
 | `query_dom` | Query elements by CSS selector |
 | `click_element` | Click an element |
 | `fill_input` | Set input/textarea/select value (React-compatible) |
 | `scroll_to` | Scroll to element or position |
-| `take_screenshot` | Capture page/element as base64 PNG/JPEG |
+| `take_screenshot` | Capture as base64 PNG/JPEG |
 | `execute_script` | Run arbitrary JavaScript |
 | `navigate` | Navigate to URL |
-| `get_react_tree` | Inspect React component tree, props, and state |
-| `get_skill_md` | Get full API documentation |
+| `get_react_tree` | Inspect React component tree |
+| `get_skill_md` | Full API documentation |
 
 ### Python
 
 | Function | Description |
 |----------|-------------|
+| `execute_code` | Run Python code (persistent REPL, auto-captures last expression) |
 | `get_process_info` | PID, CWD, Python version, platform, memory |
-| `execute_code` | Run arbitrary Python code |
+| `list_files` | List directory contents (sandboxed to CWD) |
+| `read_file` | Read a file (sandboxed) |
+| `write_file` | Write/append to a file (sandboxed) |
 | `get_variable` | Inspect a variable |
 | `list_variables` | List variables in scope |
-| `get_stack_trace` | Current stack trace |
-| `list_files` | List directory contents (sandboxed) |
-| `read_file` | Read a file (sandboxed) |
+| `get_stack_trace` | Stack traces of all threads |
 | `get_installed_packages` | List pip packages |
+| `get_source` | Get debugger source code |
+| `get_skill_md` | Full API documentation |
 
-## For AI Agents
+Call `get_skill_md` from either debugger for complete API reference with parameters and examples.
 
-Call `get_skill_md` to get a complete API reference with parameter details and curl examples. The response follows the [agentskills.io](https://agentskills.io) specification.
-
-The floating overlay includes a copyable instruction block with the service URL, token, and a pointer to `get_skill_md` for full docs.
+</details>
 
 ## License
 

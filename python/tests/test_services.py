@@ -38,6 +38,7 @@ def test_get_installed_packages_filter():
 
 def test_execute_code_expression():
     result = execute_code("1 + 2")
+    assert result["ok"] is True
     assert result["result"] == 3
     assert result["result_type"] == "int"
     assert result.get("error") is None
@@ -45,46 +46,85 @@ def test_execute_code_expression():
 
 def test_execute_code_statement():
     result = execute_code("x = 42\nprint(x)")
+    assert result["ok"] is True
     assert "42" in result["stdout"]
     assert result.get("error") is None
 
 
 def test_execute_code_error():
     result = execute_code("1 / 0")
+    assert result["ok"] is False
     assert "error" in result
     assert "ZeroDivisionError" in result["error"]
+    assert result["error_type"] == "ZeroDivisionError"
+
+
+def test_execute_code_syntax_error():
+    result = execute_code("def")
+    assert result["ok"] is False
+    assert result["error_type"] == "SyntaxError"
 
 
 def test_execute_code_import():
-    # Multi-statement uses exec (no return value), so test via stdout
     result = execute_code("import json; print(json.dumps({'a': 1}))")
     assert '{"a": 1}' in result["stdout"]
     assert result.get("error") is None
 
 
 def test_execute_code_multiline():
+    """AST parsing captures the last expression's value."""
     code = """
 def greet(name):
     return f"Hello, {name}!"
 greet("World")
 """
     result = execute_code(code)
-    assert result.get("error") is None
-    # eval/exec may or may not capture the last expression depending on implementation
-    # but at least no error
+    assert result["ok"] is True
+    assert result["result"] == "Hello, World!"
+
+
+def test_execute_code_multiline_no_trailing_expr():
+    """Multi-statement code with no trailing expression returns None."""
+    code = "a = 1\nb = 2"
+    result = execute_code(code)
+    assert result["ok"] is True
+    assert result["result"] is None
+
+
+def test_execute_code_persistent_namespace():
+    """Variables persist across calls in the default REPL namespace."""
+    execute_code("repl_test_var = 42")
+    result = execute_code("repl_test_var + 8")
+    assert result["ok"] is True
+    assert result["result"] == 50
 
 
 def test_execute_code_timeout():
     """Test that timeout parameter works (execution should not hang)."""
     result = execute_code("'done'", timeout=5)
+    assert result["ok"] is True
     assert result["result"] == "done"
     assert result.get("error") is None
 
 
 def test_execute_code_stdout_capture():
     result = execute_code("print('hello'); print('world')")
+    assert result["ok"] is True
     assert "hello" in result["stdout"]
     assert "world" in result["stdout"]
+
+
+def test_execute_code_stderr_capture():
+    result = execute_code("import sys; print('err', file=sys.stderr)")
+    assert result["ok"] is True
+    assert "err" in result["stderr"]
+
+
+def test_execute_code_result_repr():
+    result = execute_code("[1, 2, 3]")
+    assert result["ok"] is True
+    assert result["result"] == [1, 2, 3]
+    assert result["result_repr"] is not None
 
 
 # --- inspect_vars ---

@@ -60,7 +60,7 @@ def _build_instruction_block(service_url: str, token: str = "") -> str:
         "#",
         "# Available functions:",
         "#   get_process_info    - PID, Python version, CWD, platform, memory",
-        "#   execute_code        - Run arbitrary Python code (with timeout)",
+        "#   execute_code        - Run Python code (persistent REPL, auto-captures last expr)",
         "#   get_variable        - Inspect a variable by name",
         "#   list_variables      - List variables in a namespace",
         "#   get_stack_trace     - Stack traces of all threads",

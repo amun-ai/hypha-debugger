@@ -98,12 +98,15 @@ Get information about the current Python process.
 - **Example**: `curl "$SERVICE_URL/get_process_info"`
 
 ### execute_code(code, namespace?, timeout?)
-Execute arbitrary Python code in the process.
+Execute arbitrary Python code in the process. Uses AST parsing to automatically
+capture the last expression's value. Variables, functions, and imports persist
+across calls in the default REPL namespace.
 - **code** (string, required): Python code to execute.
-- **namespace** (string, default `"__main__"`): Module namespace to execute in.
+- **namespace** (string, default `""`): Namespace. Empty = persistent REPL. `"__main__"` = main module.
 - **timeout** (int, default `30`): Timeout in seconds. 0 for no timeout.
-- **Returns**: `{stdout, stderr, result, result_type, error?, timed_out?}`
-- Tries `eval()` first (returns value), falls back to `exec()` (returns None).
+- **Returns**: `{ok, stdout, stderr, result, result_repr, result_type, error?, error_type?, error_message?, traceback?, timed_out?}`
+- The last expression in the code block is automatically captured as `result`.
+  E.g. `"x = 1\\nx + 1"` returns `result=2`.
 - **Example**:
   ```bash
   curl -X POST "$SERVICE_URL/execute_code" \\

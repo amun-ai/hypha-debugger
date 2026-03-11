@@ -51,21 +51,17 @@ export function generateSkillMd(
     "",
     "**GET request** (for functions with no required parameters):",
     "```",
-    `curl '{SERVICE_URL}/get_page_info?_mode=last' -H 'Authorization: Bearer {TOKEN}'`,
+    `curl '{SERVICE_URL}/get_page_info'`,
     "```",
     "",
     "**POST request** (for functions with parameters):",
     "```",
-    `curl -X POST '{SERVICE_URL}/query_dom?_mode=last' \\`,
-    `  -H 'Authorization: Bearer {TOKEN}' \\`,
+    `curl -X POST '{SERVICE_URL}/query_dom' \\`,
     `  -H 'Content-Type: application/json' \\`,
     `  -d '{"selector": "button"}'`,
     "```",
     "",
-    "Replace `{SERVICE_URL}` and `{TOKEN}` with the actual values from the instruction block.",
-    "",
-    "**Note:** The `_mode=last` query parameter ensures the latest debugger instance is used,",
-    "even if multiple sessions have connected to the same workspace.",
+    "Replace `{SERVICE_URL}` with the actual service URL from the instruction block.",
     "",
   ].join("\n");
 
@@ -114,9 +110,8 @@ export function generateSkillMd(
         functionDocs.push("**Example:**");
         functionDocs.push("```bash");
         functionDocs.push(
-          `curl -X POST '{SERVICE_URL}/${name}?_mode=last' \\`
+          `curl -X POST '{SERVICE_URL}/${name}' \\`
         );
-        functionDocs.push(`  -H 'Authorization: Bearer {TOKEN}' \\`);
         functionDocs.push(`  -H 'Content-Type: application/json' \\`);
         functionDocs.push(`  -d '${JSON.stringify(exampleParams)}'`);
         functionDocs.push("```");
@@ -124,7 +119,7 @@ export function generateSkillMd(
         functionDocs.push("**Example:**");
         functionDocs.push("```bash");
         functionDocs.push(
-          `curl '{SERVICE_URL}/${name}?_mode=last' -H 'Authorization: Bearer {TOKEN}'`
+          `curl '{SERVICE_URL}/${name}'`
         );
         functionDocs.push("```");
       }
@@ -134,7 +129,7 @@ export function generateSkillMd(
       functionDocs.push("**Example:**");
       functionDocs.push("```bash");
       functionDocs.push(
-        `curl '{SERVICE_URL}/${name}?_mode=last' -H 'Authorization: Bearer {TOKEN}'`
+        `curl '{SERVICE_URL}/${name}'`
       );
       functionDocs.push("```");
     }
@@ -151,7 +146,6 @@ export function generateSkillMd(
     "- **Use `get_page_info` with `include_logs=true`** to check for JavaScript errors or debug output.",
     "- **Use `get_react_tree`** if the page uses React — it gives you component names, props, and state.",
     "- All POST endpoints accept JSON body with the parameter names as keys.",
-    "- All endpoints require the `Authorization: Bearer {TOKEN}` header.",
     "",
   ].join("\n");
 

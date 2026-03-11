@@ -14,30 +14,29 @@ from hypha_debugger.services.inspect_vars import (
     list_variables,
     get_stack_trace,
 )
-from hypha_debugger.services.filesystem import list_files, read_file
+from hypha_debugger.services.filesystem import list_files, read_file, write_file
 
 logger = logging.getLogger("hypha_debugger")
 
 
 def _build_service_url(server_url: str, service_id: str) -> str:
-    """Build a stable, predictable HTTP service URL.
+    """Build the HTTP service URL from server URL and full service ID.
 
     Strips the clientId prefix so the URL uses only the bare service name.
-    Callers append ?_mode=last to resolve the most recent instance.
 
     Args:
         server_url: e.g. "https://hypha.aicell.io"
-        service_id: e.g. "ws-xxx/clientId:py-debugger"
+        service_id: e.g. "ws-xxx/clientId:py-debugger-abc123"
 
     Returns:
-        e.g. "https://hypha.aicell.io/ws-xxx/services/py-debugger"
+        e.g. "https://hypha.aicell.io/ws-xxx/services/py-debugger-abc123"
     """
     base = server_url.rstrip("/")
     # service_id format: "workspace/clientId:svcName"
     parts = service_id.split("/", 1)
     if len(parts) == 2:
         workspace, svc_part = parts
-        # Strip clientId: "abc123:py-debugger" → "py-debugger"
+        # Strip clientId: "abc123:py-debugger-xyz" → "py-debugger-xyz"
         if ":" in svc_part:
             svc_name = svc_part.split(":", 1)[1]
         else:
@@ -46,76 +45,82 @@ def _build_service_url(server_url: str, service_id: str) -> str:
     return f"{base}/services/{service_id}"
 
 
-def _build_instruction_block(
-    service_url: str,
-    token: str,
-    require_token: bool = True,
-) -> str:
+def _build_instruction_block(service_url: str, token: str = "") -> str:
     """Build the instruction block with copy-paste commands for remote access.
 
-    Returns a formatted string similar to the JS overlay instructions.
+    Returns a formatted string that can be pasted directly into an AI agent chat.
     """
-    auth_header = f' -H "Authorization: Bearer $TOKEN"' if require_token else ""
+    auth = f' -H "Authorization: Bearer $TOKEN"' if token else ""
     lines = [
         "# Hypha Remote Debugger — Python Process",
         "# A debugger is attached to a running Python process.",
-        "# You can remotely inspect variables, execute code, browse files,",
+        "# You can remotely execute code, read/write files, inspect variables,",
         "# and query process info via the HTTP API below.",
         "#",
-        "# Available functions: get_process_info, execute_code, get_variable,",
-        "#   list_variables, get_stack_trace, list_files, read_file, get_installed_packages",
+        "# Available functions:",
+        "#   get_process_info    - PID, Python version, CWD, platform, memory",
+        "#   execute_code        - Run arbitrary Python code (with timeout)",
+        "#   get_variable        - Inspect a variable by name",
+        "#   list_variables      - List variables in a namespace",
+        "#   get_stack_trace     - Stack traces of all threads",
+        "#   list_files          - List directory contents",
+        "#   read_file           - Read file content (with offset/limit)",
+        "#   write_file          - Write/append to a file",
+        "#   get_installed_packages - List pip packages",
         "#",
-        "# All endpoints require ?_mode=last suffix. POST endpoints accept JSON body.",
+        "# POST endpoints accept JSON body with parameter names as keys.",
         "",
         f'SERVICE_URL="{service_url}"',
     ]
-    if require_token:
+    if token:
         lines.append(f'TOKEN="{token}"')
     lines += [
         "",
         "# Get process info (PID, Python version, CWD, memory):",
-        f'curl "$SERVICE_URL/get_process_info?_mode=last"{auth_header}',
+        f'curl "$SERVICE_URL/get_process_info"{auth}',
         "",
-        "# Execute Python code remotely:",
-        f"curl -X POST \"$SERVICE_URL/execute_code?_mode=last\""
-        f"{auth_header}"
-        " -H \"Content-Type: application/json\""
+        "# Execute Python code (timeout default 30s):",
+        f'curl -X POST "$SERVICE_URL/execute_code"{auth}'
+        ' -H "Content-Type: application/json"'
         " -d '{\"code\": \"import sys; sys.version\"}'",
         "",
-        "# Inspect a variable:",
-        f"curl -X POST \"$SERVICE_URL/get_variable?_mode=last\""
-        f"{auth_header}"
-        " -H \"Content-Type: application/json\""
-        " -d '{\"name\": \"my_var\"}'",
+        "# Write a file:",
+        f'curl -X POST "$SERVICE_URL/write_file"{auth}'
+        ' -H "Content-Type: application/json"'
+        " -d '{\"path\": \"hello.txt\", \"content\": \"Hello, world!\"}'",
         "",
         "# List files in working directory:",
-        f'curl "$SERVICE_URL/list_files?_mode=last"{auth_header}',
+        f'curl "$SERVICE_URL/list_files"{auth}',
+        "",
+        "# Read a file:",
+        f'curl -X POST "$SERVICE_URL/read_file"{auth}'
+        ' -H "Content-Type: application/json"'
+        " -d '{\"path\": \"hello.txt\"}'",
     ]
     return "\n".join(lines)
 
 
 def _print_session_info(
     server_url: str,
-    service_id: str,
     service_url: str,
-    token: str,
-    require_token: bool = True,
+    token: str = "",
 ) -> None:
     """Print session information with remote access URLs."""
     print(f"[hypha-debugger] Connected to {server_url}")
-    print(f"[hypha-debugger] Service ID: {service_id}")
     print(f"[hypha-debugger] Service URL: {service_url}")
-    if require_token:
+    if token:
         print(f"[hypha-debugger] Token: {token}")
     print()
     sep = "=" * 60
-    print(f"{sep}")
-    print("  Copy the text below to your AI agent")
-    print(f"{sep}")
+    print(sep)
+    print("  WARNING: The URL below grants full access to this Python")
+    print("  process (execute code, read/write files). Only share it")
+    print("  with trusted agents or people.")
+    print(sep)
     print()
-    print(_build_instruction_block(service_url, token, require_token))
+    print(_build_instruction_block(service_url, token))
     print()
-    print(f"{sep}")
+    print(sep)
 
 
 @dataclass
@@ -135,17 +140,17 @@ class DebugSession:
 
     def print_instructions(self) -> str:
         """Print copy-paste instructions for remote access and return them."""
-        instructions = _build_instruction_block(
-            self.service_url, self.token, bool(self.token)
-        )
+        instructions = _build_instruction_block(self.service_url, self.token)
         sep = "=" * 60
-        print(f"{sep}")
-        print("  Copy the text below to your AI agent")
-        print(f"{sep}")
+        print(sep)
+        print("  WARNING: The URL below grants full access to this Python")
+        print("  process (execute code, read/write files). Only share it")
+        print("  with trusted agents or people.")
+        print(sep)
         print()
         print(instructions)
         print()
-        print(f"{sep}")
+        print(sep)
         return instructions
 
     async def serve_forever(self):
@@ -181,6 +186,27 @@ class DebugSession:
             self._thread.join(timeout=5)
 
 
+def _resolve_id_and_visibility(
+    service_id: str,
+    visibility: str,
+    require_token: bool,
+) -> tuple:
+    """Resolve effective service ID and visibility.
+
+    By default (require_token=False), generates a unique random service ID
+    and registers as unlisted. The URL itself acts as the secret.
+
+    Returns:
+        (effective_id, effective_visibility)
+    """
+    effective_id = service_id
+    # Always add a random suffix unless user provided a custom ID
+    if service_id == "py-debugger":
+        effective_id = f"py-debugger-{secrets.token_hex(16)}"
+    effective_visibility = visibility or ("protected" if require_token else "unlisted")
+    return effective_id, effective_visibility
+
+
 async def start_debugger(
     server_url: str,
     workspace: str = "",
@@ -188,35 +214,34 @@ async def start_debugger(
     service_id: str = "py-debugger",
     service_name: str = "Python Debugger",
     visibility: str = "",
-    require_token: bool = True,
+    require_token: bool = False,
 ) -> DebugSession:
     """Start the Hypha debugger (async).
 
     Connects to a Hypha server and registers a debug service that remote
     clients can use to inspect and interact with this Python process.
 
+    By default, the service is registered as "unlisted" with a unique random
+    service ID. The URL itself is unguessable — no token needed. Just keep
+    the URL secret.
+
     Args:
         server_url: Hypha server URL (required).
         workspace: Workspace name (auto-assigned if empty).
         token: Authentication token for connecting to Hypha.
-        service_id: Service ID to register as.
+        service_id: Service ID to register as. A random suffix is added by default.
         service_name: Human-readable service name.
         visibility: Service visibility override ("public", "protected", "unlisted").
-            Defaults to "protected" when require_token=True, "unlisted" when False.
-        require_token: Whether remote callers must supply a JWT token (default True).
-            When False, the service is registered as "unlisted" and the service ID
-            gets a random suffix — the URL itself acts as the secret, no token needed.
+        require_token: Whether to generate a JWT token for remote callers (default False).
 
     Returns:
         A DebugSession with service_id, workspace, server, service_url, and token.
     """
     from hypha_rpc import connect_to_server
 
-    # Resolve effective service_id and visibility based on require_token.
-    effective_id = service_id
-    if not require_token and service_id == "py-debugger":
-        effective_id = f"py-debugger-{secrets.token_hex(8)}"
-    effective_visibility = visibility or ("protected" if require_token else "unlisted")
+    effective_id, effective_visibility = _resolve_id_and_visibility(
+        service_id, visibility, require_token
+    )
 
     connect_config = {"server_url": server_url}
     if workspace:
@@ -246,13 +271,14 @@ async def start_debugger(
         "get_stack_trace": get_stack_trace,
         "list_files": list_files,
         "read_file": read_file,
+        "write_file": write_file,
     }
 
     svc_info = await server.register_service(service)
     actual_id = svc_info.get("id", effective_id) if isinstance(svc_info, dict) else effective_id
     ws = server.config.get("workspace", workspace) if hasattr(server.config, "get") else getattr(server.config, "workspace", workspace)
 
-    # Generate a token for remote access (24h expiry); skip in no-token mode.
+    # Generate a token for remote access (24h expiry) only if requested.
     session_token = ""
     if require_token:
         session_token = await server.generate_token({"expires_in": 86400})
@@ -266,7 +292,7 @@ async def start_debugger(
         ws,
         actual_id,
     )
-    _print_session_info(server_url, actual_id, service_url, session_token, require_token)
+    _print_session_info(server_url, service_url, session_token)
 
     return DebugSession(
         service_id=actual_id,
@@ -285,7 +311,7 @@ def start_debugger_sync(
     service_id: str = "py-debugger",
     service_name: str = "Python Debugger",
     visibility: str = "",
-    require_token: bool = True,
+    require_token: bool = False,
 ) -> DebugSession:
     """Start the Hypha debugger (sync).
 
@@ -300,11 +326,9 @@ def start_debugger_sync(
     """
     from hypha_rpc.sync import connect_to_server
 
-    # Resolve effective service_id and visibility based on require_token.
-    effective_id = service_id
-    if not require_token and service_id == "py-debugger":
-        effective_id = f"py-debugger-{secrets.token_hex(8)}"
-    effective_visibility = visibility or ("protected" if require_token else "unlisted")
+    effective_id, effective_visibility = _resolve_id_and_visibility(
+        service_id, visibility, require_token
+    )
 
     server = connect_to_server({"server_url": server_url, **({"workspace": workspace} if workspace else {}), **({"token": token} if token else {})})
 
@@ -328,13 +352,14 @@ def start_debugger_sync(
         "get_stack_trace": get_stack_trace,
         "list_files": list_files,
         "read_file": read_file,
+        "write_file": write_file,
     }
 
     svc_info = server.register_service(service)
     actual_id = svc_info.get("id", effective_id) if isinstance(svc_info, dict) else effective_id
     ws = server.config.get("workspace", workspace) if hasattr(server.config, "get") else getattr(server.config, "workspace", workspace)
 
-    # Generate a token for remote access (24h expiry); skip in no-token mode.
+    # Generate a token for remote access (24h expiry) only if requested.
     session_token = ""
     if require_token:
         session_token = server.generate_token({"expires_in": 86400})
@@ -348,7 +373,7 @@ def start_debugger_sync(
         ws,
         actual_id,
     )
-    _print_session_info(server_url, actual_id, service_url, session_token, require_token)
+    _print_session_info(server_url, service_url, session_token)
 
     return DebugSession(
         service_id=actual_id,

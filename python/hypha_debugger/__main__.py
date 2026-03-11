@@ -42,9 +42,9 @@ def main():
         help="Human-readable service name (default: Python Debugger)",
     )
     parser.add_argument(
-        "--no-token",
+        "--require-token",
         action="store_true",
-        help="Disable token requirement (URL-secret mode)",
+        help="Require a JWT token for remote access (default: URL-secret mode, no token needed)",
     )
     args = parser.parse_args()
 
@@ -55,7 +55,7 @@ def main():
             token=args.token,
             service_id=args.service_id,
             service_name=args.service_name,
-            require_token=not args.no_token,
+            require_token=args.require_token,
         )
 
         print()

@@ -74,13 +74,12 @@ export class HyphaDebugger {
   private serviceInfo: any = null;
 
   constructor(config: DebuggerConfig) {
-    const requireToken = config.require_token ?? true;
+    const requireToken = config.require_token ?? false;
 
-    // Derive service_id: append random suffix in no-token mode unless user
-    // provided an explicit custom id.
+    // Always append random suffix unless user provided a custom id.
     let serviceId = config.service_id ?? "web-debugger";
-    if (!requireToken && !config.service_id) {
-      serviceId = `web-debugger-${randomHex(8)}`;
+    if (!config.service_id) {
+      serviceId = `web-debugger-${randomHex(16)}`;
     }
 
     // Derive visibility: require_token mode → protected, no-token → unlisted.
@@ -208,10 +207,10 @@ export class HyphaDebugger {
     if (sessionToken) {
       console.log(`[hypha-debugger] Token: ${sessionToken}`);
       console.log(
-        `[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info?_mode=last' -H 'Authorization: Bearer ${sessionToken}'`
+        `[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info' -H 'Authorization: Bearer ${sessionToken}'`
       );
     } else {
-      console.log(`[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info?_mode=last'`);
+      console.log(`[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info'`);
     }
 
     const session: DebugSession = {
@@ -336,7 +335,7 @@ export class HyphaDebugger {
       `# Available functions: get_page_info, get_html, query_dom, click_element,`,
       `#   fill_input, scroll_to, take_screenshot, execute_script, navigate, get_react_tree`,
       `#`,
-      `# All endpoints require ?_mode=last suffix. POST endpoints accept JSON body.`,
+      `# POST endpoints accept JSON body with parameter names as keys.`,
       ``,
       `SERVICE_URL="${serviceUrl}"`,
     ];
@@ -346,19 +345,19 @@ export class HyphaDebugger {
     lines.push(
       ``,
       `# Get page info (URL, title, viewport, frameworks):`,
-      `curl "$SERVICE_URL/get_page_info?_mode=last"${auth}`,
+      `curl "$SERVICE_URL/get_page_info"${auth}`,
       ``,
       `# Take a screenshot:`,
-      `curl "$SERVICE_URL/take_screenshot?_mode=last"${auth}`,
+      `curl "$SERVICE_URL/take_screenshot"${auth}`,
       ``,
       `# Execute JavaScript remotely:`,
-      `curl -X POST "$SERVICE_URL/execute_script?_mode=last"${auth} -H "Content-Type: application/json" -d '{"code": "document.title"}'`,
+      `curl -X POST "$SERVICE_URL/execute_script"${auth} -H "Content-Type: application/json" -d '{"code": "document.title"}'`,
       ``,
       `# Query DOM elements:`,
-      `curl -X POST "$SERVICE_URL/query_dom?_mode=last"${auth} -H "Content-Type: application/json" -d '{"selector": "button"}'`,
+      `curl -X POST "$SERVICE_URL/query_dom"${auth} -H "Content-Type: application/json" -d '{"selector": "button"}'`,
       ``,
       `# Full API docs (all functions with parameter schemas):`,
-      `curl "$SERVICE_URL/get_skill_md?_mode=last"${auth}`,
+      `curl "$SERVICE_URL/get_skill_md"${auth}`,
     );
     return lines.join("\n");
   }

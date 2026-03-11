@@ -33,7 +33,7 @@ export async function startDebugger(config: DebuggerConfig): Promise<DebugSessio
  * Auto-start: when loaded via <script> tag, automatically start the debugger.
  * Configuration can be provided via data-* attributes on the script tag:
  *   data-server-url, data-workspace, data-token, data-service-id, data-no-ui,
- *   data-no-token
+ *   data-require-token
  *
  * Set data-manual to disable auto-start.
  */
@@ -75,8 +75,8 @@ function autoStart(): void {
   if (scriptEl?.hasAttribute("data-no-ui")) {
     config.show_ui = false;
   }
-  if (scriptEl?.hasAttribute("data-no-token")) {
-    config.require_token = false;
+  if (scriptEl?.hasAttribute("data-require-token")) {
+    config.require_token = true;
   }
 
   startDebugger(config).catch((err) => {

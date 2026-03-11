@@ -1,8 +1,13 @@
-"""Arbitrary code execution service."""
+"""Arbitrary code execution service with timeout support."""
 
 import sys
 import io
+import signal
 import traceback
+import threading
+
+# Default timeout for code execution (seconds). 0 = no timeout.
+DEFAULT_TIMEOUT = 30
 
 try:
     from pydantic import Field
@@ -15,19 +20,28 @@ try:
             default="__main__",
             description='Namespace to execute in. Default: "__main__" (the main module namespace).',
         ),
+        timeout: int = Field(
+            default=DEFAULT_TIMEOUT,
+            description="Timeout in seconds. 0 for no timeout. Default: 30.",
+        ),
     ) -> dict:
-        """Execute Python code in the debugger process and return stdout, stderr, and the result of the last expression."""
-        return _execute_impl(code, namespace)
+        """Execute Python code in the debugger process and return stdout, stderr, and the result.
+
+        Supports both expressions (returns the value) and statements.
+        Code runs in the target namespace so you can define functions, import modules, etc.
+        A timeout (default 30s) prevents infinite loops from hanging the debugger.
+        """
+        return _execute_impl(code, namespace, timeout)
 
 except ImportError:
 
-    def execute_code(code: str, namespace: str = "__main__") -> dict:
+    def execute_code(code: str, namespace: str = "__main__", timeout: int = DEFAULT_TIMEOUT) -> dict:
         """Execute Python code in the debugger process."""
-        return _execute_impl(code, namespace)
+        return _execute_impl(code, namespace, timeout)
 
 
-def _execute_impl(code: str, namespace: str = "__main__") -> dict:
-    """Implementation of code execution."""
+def _execute_impl(code: str, namespace: str = "__main__", timeout: int = DEFAULT_TIMEOUT) -> dict:
+    """Implementation of code execution with optional timeout."""
     # Get the target namespace
     if namespace == "__main__":
         ns = vars(sys.modules.get("__main__", {}))
@@ -42,18 +56,30 @@ def _execute_impl(code: str, namespace: str = "__main__") -> dict:
 
     result = None
     error = None
+    timed_out = False
 
     try:
         sys.stdout = stdout_capture
         sys.stderr = stderr_capture
 
-        # Try as expression first (to capture return value)
-        try:
-            result = eval(code, ns)
-        except SyntaxError:
-            # Not an expression, execute as statements
-            exec(code, ns)
-            result = None
+        if timeout > 0 and threading.current_thread() is threading.main_thread():
+            # Use SIGALRM for timeout on the main thread (Unix only)
+            def _timeout_handler(signum, frame):
+                raise TimeoutError(f"Code execution timed out after {timeout}s")
+
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(timeout)
+            try:
+                result = _run_code(code, ns)
+            except TimeoutError as e:
+                error = str(e)
+                timed_out = True
+            finally:
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+        else:
+            # No timeout or not on main thread — run directly
+            result = _run_code(code, ns)
     except Exception:
         error = traceback.format_exc()
     finally:
@@ -74,8 +100,19 @@ def _execute_impl(code: str, namespace: str = "__main__") -> dict:
     }
     if error:
         response["error"] = error
+    if timed_out:
+        response["timed_out"] = True
 
     return response
+
+
+def _run_code(code: str, ns: dict):
+    """Try as expression first (to capture return value), fall back to exec."""
+    try:
+        return eval(code, ns)
+    except SyntaxError:
+        exec(code, ns)
+        return None
 
 
 def _safe_serialize(obj, depth=0, max_depth=3):

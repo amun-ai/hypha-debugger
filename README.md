@@ -120,9 +120,9 @@ session = start_debugger_sync(server_url='https://hypha.aicell.io')
 |----------|-------------|
 | `execute_code` | Run Python code (persistent REPL, auto-captures last expression) |
 | `get_process_info` | PID, CWD, Python version, platform, memory |
-| `list_files` | List directory contents (sandboxed to CWD) |
-| `read_file` | Read a file (sandboxed) |
-| `write_file` | Write/append to a file (sandboxed) |
+| `list_files` | List directory contents |
+| `read_file` | Read a file |
+| `write_file` | Write/append to a file |
 | `get_variable` | Inspect a variable |
 | `list_variables` | List variables in scope |
 | `get_stack_trace` | Stack traces of all threads |

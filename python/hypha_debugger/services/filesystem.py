@@ -1,4 +1,4 @@
-"""File system browsing and writing service (sandboxed to CWD)."""
+"""File system browsing and writing service."""
 
 import os
 
@@ -10,19 +10,19 @@ try:
     def list_files(
         path: str = Field(
             default=".",
-            description='Directory path relative to CWD. Default: "." (current directory).',
+            description='Directory path (absolute or relative to CWD). Default: ".".',
         ),
         pattern: str = Field(
             default="",
             description='Glob pattern to filter files, e.g. "*.py".',
         ),
     ) -> dict:
-        """List files and directories in a path relative to the process CWD."""
+        """List files and directories at the given path."""
         return _list_files_impl(path, pattern)
 
     @schema_function
     def read_file(
-        path: str = Field(..., description="File path relative to CWD."),
+        path: str = Field(..., description="File path (absolute or relative to CWD)."),
         max_lines: int = Field(
             default=500,
             description="Maximum number of lines to read. Default: 500.",
@@ -36,7 +36,7 @@ try:
             description="File encoding. Default: utf-8.",
         ),
     ) -> dict:
-        """Read a file relative to the process CWD. Returns the content as a string.
+        """Read a file. Returns the content as a string.
 
         Use offset and max_lines to paginate through large files.
         """
@@ -44,7 +44,7 @@ try:
 
     @schema_function
     def write_file(
-        path: str = Field(..., description="File path relative to CWD."),
+        path: str = Field(..., description="File path (absolute or relative to CWD)."),
         content: str = Field(..., description="Content to write to the file."),
         mode: str = Field(
             default="w",
@@ -59,47 +59,39 @@ try:
             description="File encoding. Default: utf-8.",
         ),
     ) -> dict:
-        """Write content to a file relative to the process CWD.
+        """Write content to a file.
 
         Creates parent directories automatically. Use mode="a" to append.
-        Sandboxed: cannot write outside the process CWD.
         """
         return _write_file_impl(path, content, mode, create_dirs, encoding)
 
 except ImportError:
 
     def list_files(path: str = ".", pattern: str = "") -> dict:
-        """List files and directories in a path relative to CWD."""
+        """List files and directories at the given path."""
         return _list_files_impl(path, pattern)
 
     def read_file(
         path: str = "", max_lines: int = 500, offset: int = 0, encoding: str = "utf-8"
     ) -> dict:
-        """Read a file relative to CWD."""
+        """Read a file."""
         return _read_file_impl(path, max_lines, offset, encoding)
 
     def write_file(
         path: str = "", content: str = "", mode: str = "w",
         create_dirs: bool = True, encoding: str = "utf-8"
     ) -> dict:
-        """Write content to a file relative to CWD."""
+        """Write content to a file."""
         return _write_file_impl(path, content, mode, create_dirs, encoding)
 
 
-def _resolve_safe(path: str) -> str:
-    """Resolve path and ensure it's within CWD."""
-    cwd = os.path.realpath(os.getcwd())
-    resolved = os.path.realpath(os.path.join(cwd, path))
-    if not resolved.startswith(cwd):
-        raise PermissionError(f"Access denied: path escapes CWD ({path})")
-    return resolved
+def _resolve(path: str) -> str:
+    """Resolve path to absolute."""
+    return os.path.realpath(os.path.expanduser(path))
 
 
 def _list_files_impl(path: str, pattern: str) -> dict:
-    try:
-        resolved = _resolve_safe(path)
-    except PermissionError as e:
-        return {"error": str(e)}
+    resolved = _resolve(path)
 
     if not os.path.isdir(resolved):
         return {"error": f"Not a directory: {path}"}
@@ -123,7 +115,7 @@ def _list_files_impl(path: str, pattern: str) -> dict:
         return {"error": f"Permission denied: {path}"}
 
     return {
-        "path": os.path.relpath(resolved, os.getcwd()),
+        "path": resolved,
         "entries": entries[:500],
         "total": len(entries),
     }
@@ -144,10 +136,7 @@ def _entry_info(name: str, full_path: str) -> dict:
 
 
 def _read_file_impl(path: str, max_lines: int, offset: int, encoding: str) -> dict:
-    try:
-        resolved = _resolve_safe(path)
-    except PermissionError as e:
-        return {"error": str(e)}
+    resolved = _resolve(path)
 
     if not os.path.isfile(resolved):
         return {"error": f"Not a file: {path}"}
@@ -163,7 +152,7 @@ def _read_file_impl(path: str, max_lines: int, offset: int, encoding: str) -> di
                 lines.append(line)
         content = "".join(lines)
         return {
-            "path": os.path.relpath(resolved, os.getcwd()),
+            "path": resolved,
             "content": content,
             "lines_read": len(lines),
             "offset": offset,
@@ -179,20 +168,19 @@ def _write_file_impl(
     if mode not in ("w", "a"):
         return {"error": f'Invalid mode: {mode}. Use "w" or "a".'}
 
-    try:
-        resolved = _resolve_safe(path)
-    except PermissionError as e:
-        return {"error": str(e)}
+    resolved = _resolve(path)
 
     try:
         if create_dirs:
-            os.makedirs(os.path.dirname(resolved), exist_ok=True)
+            parent = os.path.dirname(resolved)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
 
         with open(resolved, mode, encoding=encoding) as f:
             f.write(content)
 
         return {
-            "path": os.path.relpath(resolved, os.getcwd()),
+            "path": resolved,
             "bytes_written": len(content.encode(encoding)),
             "mode": mode,
         }

@@ -133,17 +133,17 @@ PID, CWD, Python version, hostname, platform, memory usage, CPU count.
 - **Example**: `curl "$SERVICE_URL/get_process_info"`
 
 ### list_files(path?, pattern?)
-List directory contents (sandboxed to CWD).
+List directory contents. Accepts absolute or relative paths.
 - **path** (str, default `"."`), **pattern** (str): glob filter e.g. `"*.py"`.
 - **Returns**: `{path, entries: [{name, type, size?}], total}`
 
 ### read_file(path, max_lines?, offset?, encoding?)
-Read a file (sandboxed to CWD).
+Read a file. Accepts absolute or relative paths.
 - **path** (str, required), **max_lines** (int, default `500`), **offset** (int, default `0`).
 - **Returns**: `{path, content, lines_read, offset, truncated}`
 
 ### write_file(path, content, mode?, create_dirs?, encoding?)
-Write/append to a file (sandboxed to CWD). Auto-creates parent dirs.
+Write/append to a file. Auto-creates parent dirs. Accepts absolute or relative paths.
 - **path** (str), **content** (str), **mode** (`"w"` or `"a"`).
 - **Returns**: `{path, bytes_written, mode}`
 
@@ -169,7 +169,7 @@ Returns this document.
 ## Tips
 - **Use `execute_code` for file writes** when content has special characters —
   it avoids JSON/curl escaping issues that affect `write_file` via HTTP.
-- All file operations (list/read/write) are sandboxed to the process CWD.
+- File operations accept absolute paths or paths relative to the process CWD.
 - POST endpoints accept JSON body. GET endpoints take no body.
 - Code execution has a 30s default timeout to prevent hangs.
 - The REPL namespace is independent from `__main__` by default.

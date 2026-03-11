@@ -185,10 +185,13 @@ def test_read_file_with_offset():
     assert result["lines_read"] <= 2
 
 
-def test_read_file_sandbox():
-    result = read_file("../../etc/passwd")
-    assert "error" in result
-    assert "Access denied" in result["error"] or "Not a file" in result["error"]
+def test_read_file_absolute():
+    """Can read files by absolute path."""
+    import pathlib
+    toml_path = str(pathlib.Path("pyproject.toml").resolve())
+    result = read_file(toml_path)
+    assert result.get("error") is None
+    assert "hypha-debugger" in result["content"]
 
 
 def test_write_file():
@@ -234,10 +237,27 @@ def test_write_file_create_dirs():
             os.chdir(old_cwd)
 
 
-def test_write_file_sandbox():
-    result = write_file("../../etc/evil.txt", "pwned")
-    assert "error" in result
-    assert "Access denied" in result["error"]
+def test_write_file_absolute():
+    """Can write files by absolute path."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        abs_path = os.path.join(tmpdir, "abs_test.txt")
+        result = write_file(abs_path, "absolute write")
+        assert result.get("error") is None
+        assert result["bytes_written"] == 14
+        read_result = read_file(abs_path)
+        assert read_result["content"] == "absolute write"
+
+
+def test_list_files_absolute():
+    """Can list files by absolute path."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create a test file
+        with open(os.path.join(tmpdir, "hello.txt"), "w") as f:
+            f.write("hi")
+        result = list_files(tmpdir)
+        assert result.get("error") is None
+        names = [e["name"] for e in result["entries"]]
+        assert "hello.txt" in names
 
 
 def test_write_file_invalid_mode():

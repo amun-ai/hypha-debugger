@@ -87,104 +87,90 @@ def _get_skill_md_impl() -> str:
     return """# Hypha Remote Debugger — Python Process API
 
 ## Overview
-A debugger is attached to a running Python process. You can remotely execute code,
-read/write files, inspect variables, and query process info via the HTTP API.
+A remote debugger is attached to a running Python process. You have full access
+to execute code, read/write files, inspect variables, and install packages.
+
+**Recommended approach**: Use `execute_code` as your primary tool — it's a
+persistent Python REPL where variables, imports, and functions survive across
+calls. The other endpoints are convenience shortcuts.
+
+## Quick Start
+
+```bash
+# Set the service URL (provided when debugger starts)
+SERVICE_URL="<your-service-url>"
+
+# Run Python code (persistent REPL — variables survive across calls):
+curl -X POST "$SERVICE_URL/execute_code" \\
+  -H "Content-Type: application/json" \\
+  -d '{"code": "import os; os.listdir(\\".\\")"}'
+
+# Install a package:
+curl -X POST "$SERVICE_URL/execute_code" \\
+  -H "Content-Type: application/json" \\
+  -d '{"code": "import subprocess; subprocess.check_output([\\\"pip\\\", \\\"install\\\", \\\"requests\\\"])"}'
+
+# Write a file via execute_code (avoids JSON escaping issues):
+curl -X POST "$SERVICE_URL/execute_code" \\
+  -H "Content-Type: application/json" \\
+  -d '{"code": "with open(\\\"hello.py\\\", \\\"w\\\") as f: f.write(\\\"print(42)\\\\n\\\")"}'
+```
 
 ## Functions
 
+### execute_code(code, namespace?, timeout?) — PRIMARY
+Execute Python code in a persistent REPL. The last expression is automatically
+captured as the return value via AST parsing.
+- **code** (str, required): Python code to execute.
+- **namespace** (str, default `""`): Empty = persistent REPL, `"__main__"` = main module.
+- **timeout** (int, default `30`): Seconds. 0 = no timeout.
+- **Returns**: `{ok, stdout, stderr, result, result_repr, result_type, error?, error_type?, error_message?, traceback?, timed_out?}`
+- Variables, functions, and imports persist across calls.
+- Example: `"x = 1\\nx + 1"` returns `{ok: true, result: 2}`.
+
 ### get_process_info()
-Get information about the current Python process.
-- **Returns**: `{pid, cwd, python_version, hostname, platform, memory_mb, cpu_count, ...}`
+PID, CWD, Python version, hostname, platform, memory usage, CPU count.
 - **Example**: `curl "$SERVICE_URL/get_process_info"`
 
-### execute_code(code, namespace?, timeout?)
-Execute arbitrary Python code in the process. Uses AST parsing to automatically
-capture the last expression's value. Variables, functions, and imports persist
-across calls in the default REPL namespace.
-- **code** (string, required): Python code to execute.
-- **namespace** (string, default `""`): Namespace. Empty = persistent REPL. `"__main__"` = main module.
-- **timeout** (int, default `30`): Timeout in seconds. 0 for no timeout.
-- **Returns**: `{ok, stdout, stderr, result, result_repr, result_type, error?, error_type?, error_message?, traceback?, timed_out?}`
-- The last expression in the code block is automatically captured as `result`.
-  E.g. `"x = 1\\nx + 1"` returns `result=2`.
-- **Example**:
-  ```bash
-  curl -X POST "$SERVICE_URL/execute_code" \\
-    -H "Content-Type: application/json" \\
-    -d '{"code": "import sys; sys.version"}'
-  ```
-
-### get_variable(name, namespace?)
-Inspect a variable by name.
-- **name** (string, required): Variable name.
-- **namespace** (string, default `"__main__"`): Module namespace.
-- **Returns**: `{name, type, repr, length?, shape?, dtype?, keys?}`
-
-### list_variables(namespace?, filter?, include_private?)
-List variables in a namespace.
-- **namespace** (string, default `"__main__"`): Module namespace.
-- **filter** (string): Substring filter for names.
-- **include_private** (bool, default `false`): Include `_`-prefixed names.
-- **Returns**: List of `{name, type, repr}`.
-
-### get_stack_trace()
-Get stack traces of all threads.
-- **Returns**: List of `{thread_id, thread_name, stack}`.
-- **Example**: `curl "$SERVICE_URL/get_stack_trace"`
-
 ### list_files(path?, pattern?)
-List files and directories (sandboxed to CWD).
-- **path** (string, default `"."`): Directory path relative to CWD.
-- **pattern** (string): Glob filter, e.g. `"*.py"`.
+List directory contents (sandboxed to CWD).
+- **path** (str, default `"."`), **pattern** (str): glob filter e.g. `"*.py"`.
 - **Returns**: `{path, entries: [{name, type, size?}], total}`
-- **Example**: `curl "$SERVICE_URL/list_files"`
 
 ### read_file(path, max_lines?, offset?, encoding?)
 Read a file (sandboxed to CWD).
-- **path** (string, required): File path relative to CWD.
-- **max_lines** (int, default `500`): Max lines to read.
-- **offset** (int, default `0`): Lines to skip from beginning.
+- **path** (str, required), **max_lines** (int, default `500`), **offset** (int, default `0`).
 - **Returns**: `{path, content, lines_read, offset, truncated}`
-- **Example**:
-  ```bash
-  curl -X POST "$SERVICE_URL/read_file" \\
-    -H "Content-Type: application/json" \\
-    -d '{"path": "main.py"}'
-  ```
 
 ### write_file(path, content, mode?, create_dirs?, encoding?)
-Write content to a file (sandboxed to CWD).
-- **path** (string, required): File path relative to CWD.
-- **content** (string, required): Content to write.
-- **mode** (string, default `"w"`): `"w"` to overwrite, `"a"` to append.
-- **create_dirs** (bool, default `true`): Create parent directories.
+Write/append to a file (sandboxed to CWD). Auto-creates parent dirs.
+- **path** (str), **content** (str), **mode** (`"w"` or `"a"`).
 - **Returns**: `{path, bytes_written, mode}`
-- **Example**:
-  ```bash
-  curl -X POST "$SERVICE_URL/write_file" \\
-    -H "Content-Type: application/json" \\
-    -d '{"path": "hello.txt", "content": "Hello!"}'
-  ```
+
+### get_variable(name, namespace?)
+Inspect a variable by name in a module namespace.
+- **Returns**: `{name, type, repr, length?, shape?, dtype?, keys?}`
+
+### list_variables(namespace?, filter?, include_private?)
+List variables in a namespace. Filters by substring.
+
+### get_stack_trace()
+Stack traces of all threads. Useful for debugging hangs.
 
 ### get_installed_packages(filter?)
-List installed pip packages.
-- **filter** (string): Substring filter for package names.
-- **Returns**: List of `{name, version}`.
-- **Example**: `curl "$SERVICE_URL/get_installed_packages"`
+List pip packages. Optional name substring filter.
 
 ### get_source(module?)
-Get the source code of debugger modules.
-- **module** (string): Module path, e.g. `"services.execute"`. Empty to list modules.
-- **Returns**: `{module, source, lines}` or `{modules, hint}`.
+Get debugger source code. Empty = list modules, e.g. `"services.execute"`.
 
 ### get_skill_md()
-Get this API documentation as Markdown.
-- **Returns**: This document as a string.
-- **Example**: `curl "$SERVICE_URL/get_skill_md"`
+Returns this document.
 
-## Notes
-- All file operations are sandboxed to the process CWD.
-- POST endpoints accept JSON body with parameter names as keys.
-- GET endpoints take no parameters (or use query params).
-- Code execution has a default 30s timeout to prevent hangs.
+## Tips
+- **Use `execute_code` for file writes** when content has special characters —
+  it avoids JSON/curl escaping issues that affect `write_file` via HTTP.
+- All file operations (list/read/write) are sandboxed to the process CWD.
+- POST endpoints accept JSON body. GET endpoints take no body.
+- Code execution has a 30s default timeout to prevent hangs.
+- The REPL namespace is independent from `__main__` by default.
 """

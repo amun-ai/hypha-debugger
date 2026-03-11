@@ -30,8 +30,19 @@ export interface DebuggerConfig {
   service_name?: string;
   /** Show floating debug UI overlay. Default: true */
   show_ui?: boolean;
-  /** Service visibility. Default: "public" */
+  /** Service visibility. Overridden by require_token when not set explicitly. */
   visibility?: "public" | "protected" | "unlisted";
+  /**
+   * Whether remote callers must supply a JWT token. Default: true.
+   *
+   * true  → visibility "protected", a 24-hour token is generated and shown
+   *         in the instruction block. The URL alone is not enough.
+   *
+   * false → visibility "unlisted", a random 16-char hex suffix is appended
+   *         to the service ID so the URL itself is unguessable. No token is
+   *         needed — just keep the URL secret.
+   */
+  require_token?: boolean;
 }
 
 export interface DebugSession {
@@ -49,6 +60,13 @@ export interface DebugSession {
   destroy: () => Promise<void>;
 }
 
+/** Generate a cryptographically random hex string of `bytes` bytes. */
+function randomHex(bytes = 8): string {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export class HyphaDebugger {
   private config: Required<DebuggerConfig>;
   private overlay: DebugOverlay | null = null;
@@ -56,14 +74,29 @@ export class HyphaDebugger {
   private serviceInfo: any = null;
 
   constructor(config: DebuggerConfig) {
+    const requireToken = config.require_token ?? true;
+
+    // Derive service_id: append random suffix in no-token mode unless user
+    // provided an explicit custom id.
+    let serviceId = config.service_id ?? "web-debugger";
+    if (!requireToken && !config.service_id) {
+      serviceId = `web-debugger-${randomHex(8)}`;
+    }
+
+    // Derive visibility: require_token mode → protected, no-token → unlisted.
+    // An explicit config.visibility always takes precedence.
+    const visibility =
+      config.visibility ?? (requireToken ? "protected" : "unlisted");
+
     this.config = {
       server_url: config.server_url,
       workspace: config.workspace ?? "",
       token: config.token ?? "",
-      service_id: config.service_id ?? "web-debugger",
+      service_id: serviceId,
       service_name: config.service_name ?? "Web Debugger",
       show_ui: config.show_ui ?? true,
-      visibility: config.visibility ?? "public",
+      visibility,
+      require_token: requireToken,
     };
   }
 
@@ -151,9 +184,13 @@ export class HyphaDebugger {
    */
   private async updateSession(extra?: Record<string, string>): Promise<DebugSession> {
     const fullServiceId = this.serviceInfo?.id ?? this.config.service_id;
-    const sessionToken = await this.server.generateToken();
     const serviceUrl = this.buildServiceUrl(fullServiceId);
     const workspace = this.server.config?.workspace ?? "";
+
+    // In no-token mode the URL itself is the secret — skip token generation.
+    const sessionToken = this.config.require_token
+      ? await this.server.generateToken({ expires_in: 86400 })
+      : "";
 
     if (this.overlay) {
       this.overlay.setStatus("connected");
@@ -168,10 +205,14 @@ export class HyphaDebugger {
     }
 
     console.log(`[hypha-debugger] Service URL: ${serviceUrl}`);
-    console.log(`[hypha-debugger] Token: ${sessionToken}`);
-    console.log(
-      `[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info?_mode=last' -H 'Authorization: Bearer ${sessionToken}'`
-    );
+    if (sessionToken) {
+      console.log(`[hypha-debugger] Token: ${sessionToken}`);
+      console.log(
+        `[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info?_mode=last' -H 'Authorization: Bearer ${sessionToken}'`
+      );
+    } else {
+      console.log(`[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info?_mode=last'`);
+    }
 
     const session: DebugSession = {
       service_id: fullServiceId,
@@ -285,16 +326,30 @@ export class HyphaDebugger {
 
   /** Build the instruction block for the overlay panel. */
   private buildInstructionBlock(serviceUrl: string, token: string): string {
-    return [
-      `SERVICE_URL="${serviceUrl}"`,
-      `TOKEN="${token}"`,
-      ``,
-      `# Quick test:`,
-      `curl "$SERVICE_URL/get_page_info?_mode=last" -H "Authorization: Bearer $TOKEN"`,
-      ``,
-      `# Full API docs:`,
-      `curl "$SERVICE_URL/get_skill_md?_mode=last" -H "Authorization: Bearer $TOKEN"`,
-    ].join("\n");
+    if (token) {
+      // Token-protected mode: callers must supply the Authorization header.
+      return [
+        `SERVICE_URL="${serviceUrl}"`,
+        `TOKEN="${token}"`,
+        ``,
+        `# Quick test:`,
+        `curl "$SERVICE_URL/get_page_info?_mode=last" -H "Authorization: Bearer $TOKEN"`,
+        ``,
+        `# Full API docs:`,
+        `curl "$SERVICE_URL/get_skill_md?_mode=last" -H "Authorization: Bearer $TOKEN"`,
+      ].join("\n");
+    } else {
+      // No-token mode: the URL itself is the secret (unlisted + unguessable id).
+      return [
+        `SERVICE_URL="${serviceUrl}"`,
+        ``,
+        `# Quick test (no auth required — keep URL secret):`,
+        `curl "$SERVICE_URL/get_page_info?_mode=last"`,
+        ``,
+        `# Full API docs:`,
+        `curl "$SERVICE_URL/get_skill_md?_mode=last"`,
+      ].join("\n");
+    }
   }
 
   /** Wrap a service function with logging and kwargs-to-positional-args support. */

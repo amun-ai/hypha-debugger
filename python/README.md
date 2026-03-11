@@ -157,6 +157,20 @@ Inject into any Python process to enable remote code execution, variable inspect
 pip install hypha-debugger
 ```
 
+**CLI (simplest — just run and get instructions):**
+
+```bash
+hypha-debugger
+```
+
+Or with options:
+
+```bash
+hypha-debugger --server-url https://hypha.aicell.io --service-id my-debugger
+hypha-debugger --no-token  # URL-secret mode, no auth needed
+python -m hypha_debugger   # alternative
+```
+
 **Async:**
 
 ```python
@@ -165,8 +179,7 @@ from hypha_debugger import start_debugger
 
 async def main():
     session = await start_debugger(server_url="https://hypha.aicell.io")
-    print(session.service_url)  # HTTP endpoint
-    print(session.token)        # JWT token
+    session.print_instructions()  # print instructions anytime
     await session.serve_forever()
 
 asyncio.run(main())
@@ -178,19 +191,29 @@ asyncio.run(main())
 from hypha_debugger import start_debugger_sync
 
 session = start_debugger_sync(server_url="https://hypha.aicell.io")
-# Debugger runs in background, main thread continues
-print(session.service_url)
+session.print_instructions()  # print instructions anytime
 ```
 
 ### What You Get
 
+The debugger prints copy-paste instructions on startup:
+
 ```
 [hypha-debugger] Connected to https://hypha.aicell.io
-[hypha-debugger] Service URL: https://hypha.aicell.io/ws-xxx/services/clientId:py-debugger
-[hypha-debugger] Token: eyJ...
-[hypha-debugger] Test it:
-  curl 'https://hypha.aicell.io/ws-xxx/services/clientId:py-debugger/get_process_info' -H 'Authorization: Bearer eyJ...'
+[hypha-debugger] Service ID: ws-xxx/clientId:py-debugger
+[hypha-debugger] Service URL: https://hypha.aicell.io/ws-xxx/services/py-debugger
+
+SERVICE_URL="https://hypha.aicell.io/ws-xxx/services/py-debugger"
+TOKEN="eyJ..."
+
+# Quick test:
+curl "$SERVICE_URL/get_process_info?_mode=last" -H "Authorization: Bearer $TOKEN"
+
+# Execute code:
+curl -X POST "$SERVICE_URL/execute_code?_mode=last" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"code": "import sys; sys.version"}'
 ```
+
+Call `session.print_instructions()` anytime to reprint them.
 
 ### Service Functions (Python)
 

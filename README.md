@@ -66,17 +66,33 @@ console.log(session.service_url, session.token);
 pip install hypha-debugger
 ```
 
+### CLI (simplest)
+
+```bash
+# Start a debugger session and print instructions
+hypha-debugger
+
+# Or with options
+hypha-debugger --server-url https://hypha.aicell.io --service-id my-debugger
+
+# No-token mode (URL-secret, no auth needed)
+hypha-debugger --no-token
+```
+
+You can also run it as a module:
+
+```bash
+python -m hypha_debugger
+```
+
 ### Sync (scripts, notebooks)
 
 ```python
 from hypha_debugger import start_debugger_sync
 
-session = start_debugger_sync(
-    server_url='https://hypha.aicell.io',
-    token='YOUR_TOKEN',  # optional
-)
-print(session.service_url, session.token)
-# Runs in background thread, main thread stays free
+session = start_debugger_sync(server_url='https://hypha.aicell.io')
+# Prints instructions automatically, or print them again:
+session.print_instructions()
 ```
 
 ### Async
@@ -86,11 +102,8 @@ import asyncio
 from hypha_debugger import start_debugger
 
 async def main():
-    session = await start_debugger(
-        server_url='https://hypha.aicell.io',
-        token='YOUR_TOKEN',  # optional
-    )
-    print(session.service_url, session.token)
+    session = await start_debugger(server_url='https://hypha.aicell.io')
+    session.print_instructions()  # print instructions anytime
     await session.serve_forever()
 
 asyncio.run(main())

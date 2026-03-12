@@ -47,7 +47,17 @@ hypha-debugger/
 │   │   │   ├── execute.ts       # Arbitrary JS execution
 │   │   │   ├── navigate.ts      # URL navigation, history
 │   │   │   ├── react.ts         # React fiber tree inspection
-│   │   │   └── info.ts          # Page metadata, env info
+│   │   │   ├── info.ts          # Page metadata, env info
+│   │   │   ├── page-controller.ts # Smart DOM + index-based interaction API
+│   │   │   └── skill.ts         # SKILL.md generation
+│   │   ├── page-controller/     # Vendored from @page-agent/page-controller (MIT)
+│   │   │   ├── dom-tree.js      # Smart interactive element detection (~1700 lines)
+│   │   │   ├── dom-tree.d.ts    # Type declarations for dom-tree.js
+│   │   │   ├── types.ts         # FlatDomTree, DomNode types
+│   │   │   ├── dom.ts           # getFlatTree, flatTreeToString, getSelectorMap
+│   │   │   ├── actions.ts       # click, input, select, scroll interactions
+│   │   │   ├── page-info.ts     # Viewport/scroll position info
+│   │   │   └── index.ts         # PageController class
 │   │   ├── ui/                  # Floating debug overlay (Shadow DOM)
 │   │   │   ├── overlay.ts       # Draggable floating icon + panel
 │   │   │   └── styles.ts        # Scoped CSS
@@ -114,6 +124,19 @@ console.log(`Workspace: ${debugSession.workspace}`);
 ### Registered Service Functions
 
 All functions are annotated with JSON Schema for LLM tool calling.
+
+**Smart DOM Analysis + Index-Based Interaction (recommended):**
+
+| Function | Description |
+|----------|-------------|
+| `get_browser_state(viewport_only?)` | Smart DOM analysis: returns all interactive elements indexed as [0], [1], [2]... with page info. Detects elements via CSS cursor, ARIA roles, event listeners, tag names. |
+| `click_element_by_index(index)` | Click an interactive element by its index. Full mouse event sequence (hover→mousedown→focus→mouseup→click). |
+| `input_text(index, text)` | Type text into input/textarea/contenteditable by index. Works with React, Quill, LinkedIn editors. |
+| `select_option(index, option_text)` | Select a dropdown option by element index and visible text. |
+| `scroll(direction, amount?, index?)` | Scroll page or specific container. Direction: up/down/left/right. |
+| `remove_highlights()` | Remove visual element index labels from the page. |
+
+**CSS Selector-Based Functions (alternative):**
 
 | Function | Description |
 |----------|-------------|

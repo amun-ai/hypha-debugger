@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hypha Debugger - Page Controller Test</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; background: #f5f5f5; }
+    h1 { margin-bottom: 20px; color: #333; }
+    .card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card h2 { font-size: 16px; margin-bottom: 12px; color: #555; }
+    button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; margin-right: 8px; margin-bottom: 8px; }
+    .btn-primary { background: #4CAF50; color: white; }
+    .btn-secondary { background: #2196F3; color: white; }
+    .btn-danger { background: #f44336; color: white; }
+    input, textarea, select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; width: 100%; margin-bottom: 8px; }
+    label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
+    a { color: #1976D2; text-decoration: none; margin-right: 16px; }
+    a:hover { text-decoration: underline; }
+    .nav { display: flex; gap: 16px; margin-bottom: 20px; padding: 12px; background: white; border-radius: 8px; }
+    .scrollable { max-height: 150px; overflow-y: auto; border: 1px solid #ddd; padding: 12px; border-radius: 4px; }
+    .counter { font-size: 24px; font-weight: bold; color: #333; margin: 8px 0; }
+    #output { background: #f0f0f0; padding: 12px; border-radius: 4px; font-family: monospace; font-size: 13px; min-height: 40px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Page Controller Test Page</h1>
+
+  <nav class="nav">
+    <a href="#home">Home</a>
+    <a href="#about">About</a>
+    <a href="#contact">Contact</a>
+  </nav>
+
+  <div class="card">
+    <h2>Buttons</h2>
+    <button class="btn-primary" onclick="log('Primary clicked!')">Primary Action</button>
+    <button class="btn-secondary" onclick="log('Secondary clicked!')">Secondary Action</button>
+    <button class="btn-danger" onclick="log('Danger clicked!')">Delete</button>
+  </div>
+
+  <div class="card">
+    <h2>Form Inputs</h2>
+    <label for="name">Name</label>
+    <input type="text" id="name" placeholder="Enter your name">
+    <label for="email">Email</label>
+    <input type="email" id="email" placeholder="user@example.com">
+    <label for="message">Message</label>
+    <textarea id="message" rows="3" placeholder="Type your message..."></textarea>
+    <label for="country">Country</label>
+    <select id="country">
+      <option value="">Select a country</option>
+      <option value="us">United States</option>
+      <option value="uk">United Kingdom</option>
+      <option value="de">Germany</option>
+      <option value="fr">France</option>
+      <option value="se">Sweden</option>
+    </select>
+    <button class="btn-primary" onclick="submitForm()">Submit Form</button>
+  </div>
+
+  <div class="card">
+    <h2>Counter</h2>
+    <div class="counter" id="counter">0</div>
+    <button class="btn-secondary" onclick="changeCounter(-1)">- Decrease</button>
+    <button class="btn-secondary" onclick="changeCounter(1)">+ Increase</button>
+    <button class="btn-danger" onclick="resetCounter()">Reset</button>
+  </div>
+
+  <div class="card">
+    <h2>Scrollable Content</h2>
+    <div class="scrollable" id="scrollable-area">
+      <p>Item 1: Lorem ipsum dolor sit amet, consectetur adipiscing elit.</p>
+      <p>Item 2: Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+      <p>Item 3: Ut enim ad minim veniam, quis nostrud exercitation.</p>
+      <p>Item 4: Duis aute irure dolor in reprehenderit in voluptate velit.</p>
+      <p>Item 5: Excepteur sint occaecat cupidatat non proident.</p>
+      <p>Item 6: Sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+      <p>Item 7: Curabitur pretium tincidunt lacus nulla.</p>
+      <p>Item 8: Fusce is a risus a ultricies sollicitudin.</p>
+      <p>Item 9: Donec rutrum congue leo eget malesuada.</p>
+      <p>Item 10: Vivamus magna justo lacinia eget consectetur.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Output Log</h2>
+    <div id="output">Ready.</div>
+  </div>
+
+  <script>
+    let count = 0;
+    function log(msg) {
+      const el = document.getElementById('output');
+      el.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+      console.log(msg);
+    }
+    function changeCounter(delta) {
+      count += delta;
+      document.getElementById('counter').textContent = count;
+      log('Counter: ' + count);
+    }
+    function resetCounter() {
+      count = 0;
+      document.getElementById('counter').textContent = count;
+      log('Counter reset');
+    }
+    function submitForm() {
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const message = document.getElementById('message').value;
+      const country = document.getElementById('country').value;
+      log('Form submitted: ' + JSON.stringify({ name, email, message, country }));
+    }
+  </script>
+
+  <!-- Load hypha-debugger -->
+  <script src="../javascript/dist/hypha-debugger.min.js"></script>
+</body>
+</html>

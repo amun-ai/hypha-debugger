@@ -3,6 +3,7 @@
  */
 import * as hyphaRpc from "hypha-rpc";
 import { DebugOverlay } from "./ui/overlay.js";
+import { AICursor } from "./ui/cursor.js";
 import { getPageInfo, installConsoleCapture } from "./services/info.js";
 import {
   queryDom,
@@ -16,6 +17,15 @@ import { executeScript } from "./services/execute.js";
 import { navigate } from "./services/navigate.js";
 import { getReactTree } from "./services/react.js";
 import { generateSkillMd } from "./services/skill.js";
+import {
+  getBrowserState,
+  clickElementByIndex,
+  inputText,
+  selectOption,
+  scroll,
+  removeHighlights,
+  disposeController,
+} from "./services/page-controller.js";
 
 export interface DebuggerConfig {
   /** Hypha server URL. Required. */
@@ -70,6 +80,7 @@ function randomHex(bytes = 8): string {
 export class HyphaDebugger {
   private config: Required<DebuggerConfig>;
   private overlay: DebugOverlay | null = null;
+  private cursor: AICursor | null = null;
   private server: any = null;
   private serviceInfo: any = null;
 
@@ -115,6 +126,8 @@ export class HyphaDebugger {
       this.overlay = new DebugOverlay();
       this.overlay.setStatus("disconnected");
       this.overlay.setInfo({ Status: "Connecting..." });
+      // Initialize animated AI cursor
+      this.cursor = new AICursor();
     }
 
     try {
@@ -168,6 +181,9 @@ export class HyphaDebugger {
     } catch {
       // Ignore unregister errors on cleanup
     }
+    disposeController();
+    this.cursor?.destroy();
+    this.cursor = null;
     this.overlay?.destroy();
     this.overlay = null;
     const w = window as any;
@@ -288,6 +304,13 @@ export class HyphaDebugger {
       execute_script: this.wrapFn(executeScript, "execute_script"),
       navigate: this.wrapFn(navigate, "navigate"),
       get_react_tree: this.wrapFn(getReactTree, "get_react_tree"),
+      // Smart DOM analysis + index-based interaction (from page-controller)
+      get_browser_state: this.wrapFn(getBrowserState, "get_browser_state"),
+      click_element_by_index: this.wrapFn(clickElementByIndex, "click_element_by_index"),
+      input_text: this.wrapFn(inputText, "input_text"),
+      select_option: this.wrapFn(selectOption, "select_option"),
+      scroll: this.wrapFn(scroll, "scroll"),
+      remove_highlights: this.wrapFn(removeHighlights, "remove_highlights"),
       get_skill_md: this.wrapFn(this.createGetSkillMd(), "get_skill_md"),
     };
   }
@@ -302,6 +325,11 @@ export class HyphaDebugger {
         scroll_to: scrollTo, take_screenshot: takeScreenshot,
         execute_script: executeScript, navigate: navigate,
         get_react_tree: getReactTree,
+        // Smart DOM analysis + index-based interaction
+        get_browser_state: getBrowserState,
+        click_element_by_index: clickElementByIndex,
+        input_text: inputText, select_option: selectOption,
+        scroll: scroll, remove_highlights: removeHighlights,
       };
       for (const [name, f] of Object.entries(fns)) {
         if ((f as any).__schema__) schemaFns[name] = f;
@@ -329,11 +357,15 @@ export class HyphaDebugger {
     const lines = [
       `# Hypha Remote Debugger — Web Page`,
       `# A debugger is attached to a live web page.`,
-      `# You can remotely inspect the DOM, take screenshots, execute JavaScript,`,
-      `# click elements, fill inputs, and inspect React components via the HTTP API below.`,
+      `# You can remotely inspect, interact with, and control this page via the HTTP API below.`,
       `#`,
-      `# Available functions: get_page_info, get_html, query_dom, click_element,`,
-      `#   fill_input, scroll_to, take_screenshot, execute_script, navigate, get_react_tree`,
+      `# RECOMMENDED WORKFLOW (index-based, most reliable):`,
+      `#   1. get_browser_state → see all interactive elements as [0], [1], [2], ...`,
+      `#   2. click_element_by_index / input_text / select_option / scroll → act by index`,
+      `#   3. take_screenshot → verify the result visually`,
+      `#`,
+      `# Also available: get_page_info, get_html, query_dom, click_element, fill_input,`,
+      `#   scroll_to, execute_script, navigate, get_react_tree, remove_highlights`,
       `#`,
       `# POST endpoints accept JSON body with parameter names as keys.`,
       ``,
@@ -344,8 +376,14 @@ export class HyphaDebugger {
     }
     lines.push(
       ``,
-      `# Get page info (URL, title, viewport, frameworks):`,
-      `curl "$SERVICE_URL/get_page_info"${auth}`,
+      `# 1. Get interactive elements (smart DOM analysis with indexed elements):`,
+      `curl "$SERVICE_URL/get_browser_state"${auth}`,
+      ``,
+      `# 2. Click element by index (e.g. click [3]):`,
+      `curl -X POST "$SERVICE_URL/click_element_by_index"${auth} -H "Content-Type: application/json" -d '{"index": 3}'`,
+      ``,
+      `# 3. Type into an input by index:`,
+      `curl -X POST "$SERVICE_URL/input_text"${auth} -H "Content-Type: application/json" -d '{"index": 5, "text": "hello"}'`,
       ``,
       `# Take a screenshot:`,
       `curl "$SERVICE_URL/take_screenshot"${auth}`,
@@ -353,10 +391,7 @@ export class HyphaDebugger {
       `# Execute JavaScript remotely:`,
       `curl -X POST "$SERVICE_URL/execute_script"${auth} -H "Content-Type: application/json" -d '{"code": "document.title"}'`,
       ``,
-      `# Query DOM elements:`,
-      `curl -X POST "$SERVICE_URL/query_dom"${auth} -H "Content-Type: application/json" -d '{"selector": "button"}'`,
-      ``,
-      `# Full API docs (all functions with parameter schemas):`,
+      `# Full API docs:`,
       `curl "$SERVICE_URL/get_skill_md"${auth}`,
     );
     return lines.join("\n");

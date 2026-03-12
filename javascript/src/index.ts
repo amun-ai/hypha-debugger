@@ -11,11 +11,59 @@
  * Programmatic usage:
  *   import { startDebugger } from 'hypha-debugger';
  *   const session = await startDebugger({ server_url: 'https://hypha.aicell.io' });
+ *
+ * Library usage (import individual functions):
+ *   import { getPageInfo, clickElement, wrapFn, PageController } from 'hypha-debugger';
  */
 
+// ── Core debugger ──
 export { HyphaDebugger } from "./debugger.js";
 export type { DebuggerConfig, DebugSession } from "./debugger.js";
+
+// ── Service functions (all have __schema__ for hypha-rpc) ──
+export { getPageInfo, getConsoleLogs, installConsoleCapture } from "./services/info.js";
+export {
+  queryDom,
+  clickElement,
+  fillInput,
+  scrollTo,
+  getHtml,
+  getComputedStyles,
+  getElementBounds,
+} from "./services/dom.js";
+export { takeScreenshot } from "./services/screenshot.js";
+export { executeScript } from "./services/execute.js";
+export { navigate, goBack, goForward, reload } from "./services/navigate.js";
+export { getReactTree } from "./services/react.js";
+export {
+  getBrowserState,
+  clickElementByIndex,
+  inputText,
+  selectOption,
+  scroll,
+  removeHighlights,
+  disposeController,
+} from "./services/page-controller.js";
+export { generateSkillMd } from "./services/skill.js";
+
+// ── Utilities ──
+export { wrapFn } from "./utils/wrap-fn.js";
+
+// ── UI components ──
+export { AICursor } from "./ui/cursor.js";
+
+// ── Page controller ──
+export { PageController } from "./page-controller/index.js";
+
+// ── Types ──
 export type { PageInfo } from "./utils/env.js";
+export type {
+  FlatDomTree,
+  DomNode,
+  TextDomNode,
+  ElementDomNode,
+  InteractiveElementDomNode,
+} from "./page-controller/types.js";
 
 import { HyphaDebugger, type DebuggerConfig, type DebugSession } from "./debugger.js";
 

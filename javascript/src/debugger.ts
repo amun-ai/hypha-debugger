@@ -17,6 +17,7 @@ import { executeScript } from "./services/execute.js";
 import { navigate } from "./services/navigate.js";
 import { getReactTree } from "./services/react.js";
 import { generateSkillMd } from "./services/skill.js";
+import { wrapFn as baseWrapFn } from "./utils/wrap-fn.js";
 import {
   getBrowserState,
   clickElementByIndex,
@@ -398,22 +399,17 @@ export class HyphaDebugger {
   }
 
   /**
-   * Wrap a service function with logging and correct parameter names.
+   * Wrap a service function with overlay logging + correct parameter names.
    *
-   * Uses new Function() to create a wrapper whose parameter names match
-   * the __schema__ property names. This is critical for production builds
-   * where Babel/Terser minifies parameter names — hypha-rpc's
-   * getParamNames() parses Function.toString() to map kwargs to positional
-   * args, so the wrapper must have the real (unminified) parameter names.
+   * Adds logging around the function, then applies baseWrapFn() which uses
+   * new Function() to create a wrapper with unminified parameter names from
+   * __schema__. This is critical for production builds where Babel/Terser
+   * minifies parameter names — hypha-rpc's getParamNames() parses
+   * Function.toString() to map kwargs to positional args.
    */
   private wrapFn(fn: any, name: string): any {
-    const schema = fn.__schema__;
-    const paramNames: string[] = schema?.parameters?.properties
-      ? Object.keys(schema.parameters.properties)
-      : [];
-
     const self = this;
-    const callAndLog = async (args: any[]) => {
+    const logged = async (...args: any[]) => {
       self.overlay?.addLog(`${name}(${self.summarizeArgs(args)})`, "call");
       try {
         const result = await fn(...args);
@@ -430,22 +426,9 @@ export class HyphaDebugger {
         throw err;
       }
     };
-
-    let wrapper: any;
-    if (paramNames.length === 0) {
-      wrapper = async (...args: any[]) => callAndLog(args);
-    } else {
-      // Create a function with explicit, unminified parameter names so
-      // hypha-rpc can parse them from Function.toString().
-      const paramList = paramNames.join(", ");
-      wrapper = new Function(
-        "callAndLog",
-        `return async function(${paramList}) { return callAndLog([${paramList}]); }`
-      )(callAndLog);
-    }
-
-    if (schema) wrapper.__schema__ = schema;
-    return wrapper;
+    // Preserve __schema__ so baseWrapFn can read parameter names
+    if (fn.__schema__) logged.__schema__ = fn.__schema__;
+    return baseWrapFn(logged);
   }
 
   private summarizeArgs(args: any[]): string {

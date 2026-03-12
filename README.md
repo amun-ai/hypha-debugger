@@ -26,12 +26,22 @@ Prints a service URL and instructions. Paste them into your AI agent.
 Use the service URL to call functions via HTTP:
 
 ```bash
-# JavaScript
-curl "$SERVICE_URL/get_page_info"
+# Get all interactive elements with smart DOM analysis
+curl "$SERVICE_URL/get_browser_state"
+
+# Click element by index (e.g. click [3])
+curl -X POST "$SERVICE_URL/click_element_by_index" -H "Content-Type: application/json" -d '{"index": 3}'
+
+# Type into an input by index
+curl -X POST "$SERVICE_URL/input_text" -H "Content-Type: application/json" -d '{"index": 5, "text": "hello"}'
+
+# Take a screenshot
 curl "$SERVICE_URL/take_screenshot"
+
+# Execute JavaScript remotely
 curl -X POST "$SERVICE_URL/execute_script" -H "Content-Type: application/json" -d '{"code": "return document.title"}'
 
-# Python
+# Python debugger
 curl "$SERVICE_URL/get_process_info"
 curl -X POST "$SERVICE_URL/execute_code" -H "Content-Type: application/json" -d '{"code": "import sys; sys.version"}'
 
@@ -40,6 +50,50 @@ curl "$SERVICE_URL/get_skill_md"
 ```
 
 The URL contains a unique random ID — no token needed. Keep the URL secret.
+
+## Smart DOM Analysis + Index-Based Interaction
+
+The JavaScript debugger includes a smart DOM analysis engine that detects interactive elements using multiple heuristics (CSS cursor, ARIA roles, event listeners, HTML tags, contenteditable, scrollable containers). Elements are indexed as `[0]`, `[1]`, `[2]`, ... for reliable AI agent interaction.
+
+**Recommended workflow:**
+1. `get_browser_state` → see all interactive elements with indices
+2. `click_element_by_index` / `input_text` / `select_option` / `scroll` → act by index
+3. `take_screenshot` → verify the result visually
+
+**Visual effects** (visible to end users watching the page):
+- Animated AI cursor with gradient border that moves smoothly to target elements
+- Click ripple animation
+- Colored highlight boxes with number labels on interactive elements
+- Smooth scrolling to elements before interaction
+
+## Library Usage
+
+Import individual functions for use in your own projects:
+
+```typescript
+import {
+  // DOM analysis + index-based interaction
+  getBrowserState, clickElementByIndex, inputText, selectOption,
+  scroll, removeHighlights,
+  // Classic CSS selector-based functions
+  getPageInfo, queryDom, clickElement, fillInput, scrollTo, getHtml,
+  getComputedStyles, getElementBounds,
+  // Capture + execution
+  takeScreenshot, executeScript,
+  // Navigation
+  navigate, goBack, goForward, reload,
+  // React inspection
+  getReactTree,
+  // Utilities
+  wrapFn, generateSkillMd, installConsoleCapture,
+  // Classes
+  PageController, AICursor, HyphaDebugger, startDebugger,
+} from 'hypha-debugger';
+
+// wrapFn fixes minification issues — use it when registering
+// functions with hypha-rpc in production builds (Babel/Terser)
+const wrappedFn = wrapFn(mySchemaAnnotatedFunction);
+```
 
 ---
 
@@ -98,7 +152,18 @@ session = start_debugger_sync(server_url='https://hypha.aicell.io')
 <details>
 <summary><strong>Available functions</strong></summary>
 
-### JavaScript
+### JavaScript — Index-Based (recommended)
+
+| Function | Description |
+|----------|-------------|
+| `get_browser_state` | Smart DOM snapshot with indexed interactive elements |
+| `click_element_by_index` | Click element by index with visual cursor animation |
+| `input_text` | Type into input/textarea/contenteditable by index |
+| `select_option` | Select dropdown option by index |
+| `scroll` | Scroll page or element (vertical/horizontal) |
+| `remove_highlights` | Clear visual highlight overlays |
+
+### JavaScript — CSS Selector-Based
 
 | Function | Description |
 |----------|-------------|
@@ -133,6 +198,20 @@ session = start_debugger_sync(server_url='https://hypha.aicell.io')
 Call `get_skill_md` from either debugger for complete API reference with parameters and examples.
 
 </details>
+
+## Acknowledgments
+
+The smart DOM analysis and interaction engine in the JavaScript package is derived from [PageAgent](https://github.com/alibaba/page-agent) (MIT License), which in turn builds upon [browser-use](https://github.com/browser-use/browser-use).
+
+> **PageAgent** — https://github.com/alibaba/page-agent
+> Copyright (c) Alibaba Group
+> Licensed under the MIT License
+>
+> **Browser Use** — https://github.com/browser-use/browser-use
+> Copyright (c) 2024 Gregor Zunic
+> Licensed under the MIT License
+
+We gratefully acknowledge both projects and their contributors for their excellent work on web automation and DOM interaction patterns that made this possible.
 
 ## License
 

@@ -397,52 +397,55 @@ export class HyphaDebugger {
     return lines.join("\n");
   }
 
-  /** Wrap a service function with logging and kwargs-to-positional-args support. */
+  /**
+   * Wrap a service function with logging and correct parameter names.
+   *
+   * Uses new Function() to create a wrapper whose parameter names match
+   * the __schema__ property names. This is critical for production builds
+   * where Babel/Terser minifies parameter names — hypha-rpc's
+   * getParamNames() parses Function.toString() to map kwargs to positional
+   * args, so the wrapper must have the real (unminified) parameter names.
+   */
   private wrapFn(fn: any, name: string): any {
-    const wrapped = async (...args: any[]) => {
-      // Hypha's HTTP API calls with keyword arguments (**kwargs),
-      // which arrive on the JS side as a single object argument.
-      // Destructure into positional args based on schema properties.
-      if (
-        args.length === 1 &&
-        args[0] &&
-        typeof args[0] === "object" &&
-        !Array.isArray(args[0]) &&
-        fn.__schema__?.parameters?.properties
-      ) {
-        const kwargs = args[0];
-        const props = fn.__schema__.parameters.properties;
-        const paramNames = Object.keys(props);
-        // Check if any kwargs key matches a schema property name
-        const hasMatchingKey = paramNames.some((p) => p in kwargs);
-        if (hasMatchingKey) {
-          args = paramNames.map((p) => kwargs[p]);
-          while (args.length > 0 && args[args.length - 1] === undefined) {
-            args.pop();
-          }
-        }
-      }
+    const schema = fn.__schema__;
+    const paramNames: string[] = schema?.parameters?.properties
+      ? Object.keys(schema.parameters.properties)
+      : [];
 
-      this.overlay?.addLog(`${name}(${this.summarizeArgs(args)})`, "call");
+    const self = this;
+    const callAndLog = async (args: any[]) => {
+      self.overlay?.addLog(`${name}(${self.summarizeArgs(args)})`, "call");
       try {
         const result = await fn(...args);
         const hasError =
           result && typeof result === "object" && "error" in result;
         if (hasError) {
-          this.overlay?.addLog(`${name}: ${result.error}`, "error");
+          self.overlay?.addLog(`${name}: ${result.error}`, "error");
         } else {
-          this.overlay?.addLog(`${name} -> OK`, "result");
+          self.overlay?.addLog(`${name} -> OK`, "result");
         }
         return result;
       } catch (err: any) {
-        this.overlay?.addLog(`${name}: ${err.message}`, "error");
+        self.overlay?.addLog(`${name}: ${err.message}`, "error");
         throw err;
       }
     };
-    if (fn.__schema__) {
-      (wrapped as any).__schema__ = fn.__schema__;
+
+    let wrapper: any;
+    if (paramNames.length === 0) {
+      wrapper = async (...args: any[]) => callAndLog(args);
+    } else {
+      // Create a function with explicit, unminified parameter names so
+      // hypha-rpc can parse them from Function.toString().
+      const paramList = paramNames.join(", ");
+      wrapper = new Function(
+        "callAndLog",
+        `return async function(${paramList}) { return callAndLog([${paramList}]); }`
+      )(callAndLog);
     }
-    return wrapped;
+
+    if (schema) wrapper.__schema__ = schema;
+    return wrapper;
   }
 
   private summarizeArgs(args: any[]): string {

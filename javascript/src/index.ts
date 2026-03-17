@@ -33,7 +33,7 @@ export {
 } from "./services/dom.js";
 export { takeScreenshot } from "./services/screenshot.js";
 export { executeScript } from "./services/execute.js";
-export { navigate, goBack, goForward, reload } from "./services/navigate.js";
+export { navigate, goBack, goForward, reload, softReplace, installNavigationInterceptor } from "./services/navigate.js";
 export { getReactTree } from "./services/react.js";
 export {
   getBrowserState,

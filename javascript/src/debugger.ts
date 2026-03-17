@@ -14,7 +14,7 @@ import {
 } from "./services/dom.js";
 import { takeScreenshot } from "./services/screenshot.js";
 import { executeScript } from "./services/execute.js";
-import { navigate } from "./services/navigate.js";
+import { navigate, installNavigationInterceptor } from "./services/navigate.js";
 import { getReactTree } from "./services/react.js";
 import { generateSkillMd } from "./services/skill.js";
 import { wrapFn as baseWrapFn } from "./utils/wrap-fn.js";
@@ -88,6 +88,7 @@ export class HyphaDebugger {
   private server: any = null;
   private serviceInfo: any = null;
   private boundBeforeUnload: (() => void) | null = null;
+  private cleanupInterceptor: (() => void) | null = null;
 
   constructor(config: DebuggerConfig) {
     const requireToken = config.require_token ?? false;
@@ -169,6 +170,10 @@ export class HyphaDebugger {
       this.boundBeforeUnload = () => this.saveConfigToStorage();
       window.addEventListener("beforeunload", this.boundBeforeUnload);
 
+      // Intercept same-origin link clicks, form submits, and popstate
+      // so the debugger survives user-initiated navigation
+      this.cleanupInterceptor = installNavigationInterceptor();
+
       return session;
     } catch (err: any) {
       console.error("[hypha-debugger] Failed to start:", err);
@@ -184,10 +189,14 @@ export class HyphaDebugger {
   }
 
   async destroy(): Promise<void> {
-    // Remove beforeunload listener
+    // Remove event listeners
     if (this.boundBeforeUnload) {
       window.removeEventListener("beforeunload", this.boundBeforeUnload);
       this.boundBeforeUnload = null;
+    }
+    if (this.cleanupInterceptor) {
+      this.cleanupInterceptor();
+      this.cleanupInterceptor = null;
     }
     try {
       if (this.serviceInfo && this.server) {

@@ -78,12 +78,16 @@ function randomHex(bytes = 8): string {
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/** sessionStorage key for persisting debugger config across reloads. */
+const STORAGE_KEY = "__hypha_debugger_config__";
+
 export class HyphaDebugger {
   private config: Required<DebuggerConfig>;
   private overlay: DebugOverlay | null = null;
   private cursor: AICursor | null = null;
   private server: any = null;
   private serviceInfo: any = null;
+  private boundBeforeUnload: (() => void) | null = null;
 
   constructor(config: DebuggerConfig) {
     const requireToken = config.require_token ?? false;
@@ -160,6 +164,11 @@ export class HyphaDebugger {
       w.__HYPHA_DEBUGGER__ = w.__HYPHA_DEBUGGER__ ?? {};
       w.__HYPHA_DEBUGGER__.instance = this;
 
+      // Persist config to sessionStorage for auto-reconnect after reload
+      this.saveConfigToStorage();
+      this.boundBeforeUnload = () => this.saveConfigToStorage();
+      window.addEventListener("beforeunload", this.boundBeforeUnload);
+
       return session;
     } catch (err: any) {
       console.error("[hypha-debugger] Failed to start:", err);
@@ -175,12 +184,23 @@ export class HyphaDebugger {
   }
 
   async destroy(): Promise<void> {
+    // Remove beforeunload listener
+    if (this.boundBeforeUnload) {
+      window.removeEventListener("beforeunload", this.boundBeforeUnload);
+      this.boundBeforeUnload = null;
+    }
     try {
       if (this.serviceInfo && this.server) {
         await this.server.unregisterService(this.serviceInfo.id);
       }
     } catch {
       // Ignore unregister errors on cleanup
+    }
+    // Clear sessionStorage config (explicit destroy = user wants to stop)
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignore
     }
     disposeController();
     this.cursor?.destroy();
@@ -192,6 +212,48 @@ export class HyphaDebugger {
       delete w.__HYPHA_DEBUGGER__.instance;
       delete w.__HYPHA_DEBUGGER__.session;
     }
+  }
+
+  /**
+   * Persist debugger config to sessionStorage so the debugger can
+   * auto-reconnect after a page reload (soft reload injects the script,
+   * autoStart() reads this config).
+   */
+  private saveConfigToStorage(): void {
+    try {
+      const data = {
+        server_url: this.config.server_url,
+        workspace: this.server?.config?.workspace ?? this.config.workspace,
+        token: this.config.token,
+        service_id: this.config.service_id,
+        service_name: this.config.service_name,
+        show_ui: this.config.show_ui,
+        visibility: this.config.visibility,
+        require_token: this.config.require_token,
+        script_url: this.detectScriptUrl(),
+      };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      // sessionStorage might be unavailable (private browsing, full quota)
+    }
+  }
+
+  /**
+   * Detect the URL of the currently loaded hypha-debugger script.
+   * Used by navigate.ts to inject the correct script after soft reload.
+   */
+  private detectScriptUrl(): string {
+    try {
+      const scripts = document.querySelectorAll("script[src]");
+      for (const s of Array.from(scripts) as HTMLScriptElement[]) {
+        if (s.src && s.src.includes("hypha-debugger")) {
+          return s.src;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return "https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js";
   }
 
   /**

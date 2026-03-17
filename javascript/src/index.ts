@@ -88,6 +88,26 @@ export async function startDebugger(config: DebuggerConfig): Promise<DebugSessio
 function autoStart(): void {
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
+  // Skip if already started
+  if ((window as any).__HYPHA_DEBUGGER__?.instance) return;
+
+  // Check sessionStorage for saved config (auto-reconnect after soft reload)
+  try {
+    const saved = sessionStorage.getItem("__hypha_debugger_config__");
+    if (saved) {
+      const savedConfig = JSON.parse(saved) as DebuggerConfig;
+      if (savedConfig.server_url) {
+        console.log("[hypha-debugger] Reconnecting from saved session...");
+        startDebugger(savedConfig).catch((err) => {
+          console.error("[hypha-debugger] Auto-reconnect failed:", err);
+        });
+        return;
+      }
+    }
+  } catch {
+    // sessionStorage not available or parse error — continue to script tag detection
+  }
+
   // Find our own script tag
   const scripts = document.querySelectorAll("script[src]");
   let scriptEl: HTMLScriptElement | null = null;
@@ -100,9 +120,6 @@ function autoStart(): void {
 
   // Skip if data-manual is set
   if (scriptEl?.hasAttribute("data-manual")) return;
-
-  // Skip if already started
-  if ((window as any).__HYPHA_DEBUGGER__?.instance) return;
 
   const serverUrl =
     scriptEl?.getAttribute("data-server-url") ?? "https://hypha.aicell.io";

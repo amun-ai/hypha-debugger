@@ -2,6 +2,8 @@
 
 Remote debugger for web pages and Python processes — designed for AI agents. Inject it into any running target, then control it remotely via HTTP.
 
+**[Homepage & Bookmarklet Install](https://amun-ai.github.io/hypha-debugger/)** | [npm](https://www.npmjs.com/package/hypha-debugger) | [PyPI](https://pypi.org/project/hypha-debugger/)
+
 ## JavaScript — Bookmarklet (any page, no install)
 
 Create a bookmark with this URL to inject the debugger into **any web page**:

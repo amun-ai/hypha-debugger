@@ -7,7 +7,7 @@ Remote debugger for web pages and Python processes — designed for AI agents. I
 Create a bookmark with this URL to inject the debugger into **any web page**:
 
 ```
-javascript:void(function(){if(window.__HYPHA_DEBUGGER__?.instance)return alert('Debugger already running');var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js';document.head.appendChild(s)})()
+javascript:void(function(){if(window.__HYPHA_DEBUGGER__?.instance)return alert('Debugger already running');var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hypha-debugger@0.1.6/dist/hypha-debugger.min.js';document.head.appendChild(s)})()
 ```
 
 Click the bookmarklet → a floating bug icon appears → click it to copy the service URL → paste into your AI agent.

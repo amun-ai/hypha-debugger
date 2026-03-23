@@ -147,7 +147,21 @@ export class HyphaDebugger {
       if (this.config.workspace) connectConfig.workspace = this.config.workspace;
       if (this.config.token) connectConfig.token = this.config.token;
 
-      this.server = await connect(connectConfig);
+      try {
+        this.server = await connect(connectConfig);
+      } catch (connErr: any) {
+        // If connecting to a saved workspace fails (e.g. expired/garbage-collected),
+        // retry without the workspace to get a fresh one.
+        if (this.config.workspace) {
+          console.warn(
+            `[hypha-debugger] Failed to rejoin workspace "${this.config.workspace}", getting a fresh one:`,
+            connErr.message ?? connErr
+          );
+          this.server = await connect({ server_url: this.config.server_url });
+        } else {
+          throw connErr;
+        }
+      }
 
       // Register debug service
       this.serviceInfo = await this.server.registerService(
@@ -230,10 +244,14 @@ export class HyphaDebugger {
    */
   private saveConfigToStorage(): void {
     try {
+      // Save workspace so we can rejoin the same one (keeps URL stable),
+      // but never save the token — anonymous workspace tokens expire and
+      // cause "Permission denied" on reconnect. For anonymous workspaces
+      // no token is needed to rejoin; for authenticated workspaces the
+      // user must provide a fresh token via data attributes or config.
       const data = {
         server_url: this.config.server_url,
         workspace: this.server?.config?.workspace ?? this.config.workspace,
-        token: this.config.token,
         service_id: this.config.service_id,
         service_name: this.config.service_name,
         show_ui: this.config.show_ui,

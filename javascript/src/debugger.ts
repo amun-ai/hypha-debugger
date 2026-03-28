@@ -137,6 +137,17 @@ export class HyphaDebugger {
     }
 
     try {
+      // Polyfill Promise.prototype.finally if missing (needed by hypha-rpc
+      // in some older environments / polyfilled Promise implementations)
+      if (typeof Promise.prototype.finally !== "function") {
+        (Promise.prototype as any).finally = function (cb: () => void) {
+          return this.then(
+            (value: any) => Promise.resolve(cb()).then(() => value),
+            (reason: any) => Promise.resolve(cb()).then(() => { throw reason; })
+          );
+        };
+      }
+
       // Get the connectToServer function
       const connect = this.getConnectToServer();
 

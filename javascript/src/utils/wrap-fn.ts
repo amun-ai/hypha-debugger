@@ -27,17 +27,27 @@ export function wrapFn(fn: any): any {
   // Create a wrapper that:
   // 1. Has correct, unminified parameter names (for hypha-rpc getParamNames)
   // 2. Detects when kwargs are passed as a single object and destructures them
+  //
+  // hypha-rpc HTTP handler passes kwargs as a single plain object, e.g.:
+  //   execute_script({code: "..."}) instead of execute_script("...")
+  //   get_react_tree({}) instead of get_react_tree()
+  // We detect this and destructure, or discard empty objects.
   const paramList = paramNames.join(", ");
+  const firstParam = paramNames[0];
   const wrapper = new Function(
     "fn",
     "paramNames",
     `return async function(${paramList}) {
       // Detect kwargs-as-object: single argument that is a plain object
-      // whose keys match schema parameter names
-      if (arguments.length === 1 && ${paramList} != null && typeof ${paramList} === "object" && !Array.isArray(${paramList}) && !(${paramList} instanceof Date)) {
-        var _kw = ${paramList};
-        var _firstKey = Object.keys(_kw)[0];
-        if (_firstKey && paramNames.indexOf(_firstKey) !== -1) {
+      if (arguments.length === 1 && ${firstParam} != null && typeof ${firstParam} === "object" && !Array.isArray(${firstParam}) && !(${firstParam} instanceof Date) && ${firstParam}.constructor === Object) {
+        var _kw = ${firstParam};
+        var _keys = Object.keys(_kw);
+        // Empty object {} → call with no args (all defaults)
+        if (_keys.length === 0) {
+          return fn();
+        }
+        // Keys match schema params → destructure
+        if (paramNames.indexOf(_keys[0]) !== -1) {
           var _args = paramNames.map(function(n) { return _kw[n]; });
           return fn.apply(null, _args);
         }

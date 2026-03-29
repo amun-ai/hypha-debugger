@@ -2,6 +2,45 @@
  * Arbitrary JavaScript execution service.
  */
 
+/**
+ * Attempt to auto-return the last expression in a code block.
+ * If the code doesn't contain an explicit `return`, we try to
+ * add one to the last expression statement so the result is captured.
+ *
+ * Examples:
+ *   "document.title"            → "return (document.title);"
+ *   "const x = 1; x + 2"       → "const x = 1; return (x + 2);"
+ *   "const x = 1\nx + 2"       → "const x = 1\nreturn (x + 2);"
+ *   "for(...) {}"               → unchanged (control flow)
+ *   "return 42"                 → unchanged (explicit return)
+ */
+function autoReturn(code: string): string {
+  const trimmed = code.trim();
+  // Already has a return statement? Leave it alone.
+  if (/\breturn\b/.test(trimmed)) return trimmed;
+
+  // Split into statements: by newlines first, then by semicolons for
+  // single-line multi-statement code like "const x = 1; x + 2"
+  let lines = trimmed.split("\n").map((l) => l.trim()).filter(Boolean);
+
+  // If there's only one line with semicolons, split on semicolons
+  if (lines.length === 1 && lines[0].includes(";")) {
+    lines = lines[0].split(";").map((s) => s.trim()).filter(Boolean);
+  }
+
+  if (lines.length === 0) return trimmed;
+  const lastLine = lines[lines.length - 1];
+
+  // Don't add return to control flow, declarations, or assignment-only statements
+  if (/^(if|for|while|switch|try|class|function |const |let |var |import |export )/.test(lastLine)) {
+    return trimmed;
+  }
+
+  // Replace last statement with return
+  lines[lines.length - 1] = "return (" + lastLine.replace(/;$/, "") + ");";
+  return lines.join(";\n");
+}
+
 export async function executeScript(
   code: string,
   timeout_ms?: number,
@@ -9,9 +48,18 @@ export async function executeScript(
   const timeoutMs = timeout_ms ?? 10000;
 
   try {
+    // Try with auto-return first, fall back to original code if syntax error
+    let execCode = autoReturn(code);
+    let fn: Function;
+    try {
+      fn = new Function("return (async () => {" + execCode + "})()");
+    } catch {
+      // Auto-return broke the syntax — use original code
+      fn = new Function("return (async () => {" + code + "})()");
+    }
+
     const result = await Promise.race([
-      // Use async Function to allow top-level await in the code
-      new Function("return (async () => {" + code + "})()")(),
+      fn(),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error("Execution timed out")), timeoutMs)
       ),
@@ -28,6 +76,7 @@ export async function executeScript(
         serialized = {
           tag: result.tagName.toLowerCase(),
           id: result.id,
+          className: result.className,
           text: (result.textContent ?? "").trim().slice(0, 500),
         };
         type = "HTMLElement";
@@ -56,14 +105,14 @@ export async function executeScript(
 executeScript.__schema__ = {
   name: "executeScript",
   description:
-    "Execute arbitrary JavaScript code in the page context. Supports async/await. Returns the result of the last expression.",
+    'Execute arbitrary JavaScript code in the page context. Supports async/await. The last expression is auto-returned (no need for explicit "return"). Examples: "document.title", "document.querySelectorAll(\'a\').length", "await fetch(\'/api/data\').then(r => r.json())".',
   parameters: {
     type: "object",
     properties: {
       code: {
         type: "string",
         description:
-          'JavaScript code to execute. The result of the last expression is returned. Example: "return document.title"',
+          'JavaScript code to execute. The last expression is automatically returned. Examples: "document.title", "document.querySelector(\'h1\').textContent".',
       },
       timeout_ms: {
         type: "number",

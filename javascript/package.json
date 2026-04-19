@@ -1,6 +1,6 @@
 {
   "name": "hypha-debugger",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Injectable debugger for web pages and AI agents, powered by Hypha RPC",
   "type": "module",
   "main": "dist/hypha-debugger.js",
@@ -40,9 +40,6 @@
     "url": "git+https://github.com/amun-ai/hypha-debugger.git"
   },
   "homepage": "https://github.com/amun-ai/hypha-debugger",
-  "peerDependencies": {
-    "hypha-rpc": ">=0.21.36"
-  },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^28.0.0",
     "@rollup/plugin-node-resolve": "^16.0.0",
@@ -56,6 +53,6 @@
   },
   "dependencies": {
     "html-to-image": "^1.11.0",
-    "hypha-rpc": "^0.21.40"
+    "hypha-rpc": "^0.20.97"
   }
 }

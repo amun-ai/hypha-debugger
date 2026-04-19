@@ -42,7 +42,24 @@ export async function getBrowserState(
   if (viewport_only !== undefined) {
     (ctrl as any).config.viewportExpansion = viewport_only ? 0 : -1;
   }
-  return ctrl.getBrowserState();
+  // Hard timeout: pages with heavy DOMs or cross-origin iframes can
+  // make the tree walk take much longer than expected. Don't leave
+  // the HTTP caller waiting forever.
+  const timeoutMs = 15000;
+  return Promise.race([
+    ctrl.getBrowserState(),
+    new Promise<any>((_, reject) =>
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              `get_browser_state timed out after ${timeoutMs}ms (complex DOM or cross-origin iframes)`,
+            ),
+          ),
+        timeoutMs,
+      ),
+    ),
+  ]);
 }
 
 getBrowserState.__schema__ = {

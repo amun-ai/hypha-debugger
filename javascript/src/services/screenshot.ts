@@ -127,6 +127,7 @@ export async function takeScreenshot(
       pixelRatio: 1, // always capture at 1x — we'll resize after
       cacheBust: true,
       skipAutoScale: true,
+      skipFonts: true, // CORS-blocked stylesheets can hang font inlining
       filter: (el: HTMLElement) => {
         // Exclude the debugger overlay and cursor from screenshots
         return (
@@ -145,11 +146,25 @@ export async function takeScreenshot(
 
     let dataUrl: string;
     try {
-      if (fmt === "jpeg") {
-        dataUrl = await toJpeg(node, captureOptions);
-      } else {
-        dataUrl = await toPng(node, captureOptions);
-      }
+      const capturePromise =
+        fmt === "jpeg" ? toJpeg(node, captureOptions) : toPng(node, captureOptions);
+      // Hard timeout: pages with cross-origin resources can make
+      // html-to-image wait indefinitely on blocked fetches.
+      const timeoutMs = 15000;
+      dataUrl = await Promise.race<string>([
+        capturePromise,
+        new Promise<string>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(
+                new Error(
+                  `Screenshot capture timed out after ${timeoutMs}ms (likely CORS-blocked resources)`,
+                ),
+              ),
+            timeoutMs,
+          ),
+        ),
+      ]);
     } catch (captureErr: any) {
       return {
         error: `Capture failed (html-to-image): ${errorMessage(captureErr)}`,

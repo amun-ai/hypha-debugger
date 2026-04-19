@@ -9,7 +9,15 @@ Remote debugger for web pages and Python processes — designed for AI agents. I
 Create a bookmark with this URL to inject the debugger into **any web page**:
 
 ```
-javascript:void(function(){if(window.__HYPHA_DEBUGGER__?.instance)return alert('Debugger already running');var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js';document.head.appendChild(s)})()
+javascript:(async () => { if (window.__HYPHA_DEBUGGER__ && window.__HYPHA_DEBUGGER__.instance) { alert("Hypha Debugger already running on this page."); return; } const CDN = "https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js"; let code = null; try { const res = await fetch(CDN, { mode: "cors", cache: "no-cache" }); if (!res.ok) throw new Error("HTTP " + res.status); code = await res.text(); } catch (e) { alert("Could not fetch Hypha Debugger from the CDN.
+
+This page may block cdn.jsdelivr.net via CSP (connect-src).
+
+Error: " + e.message); return; } try { (0, eval)(code); return; } catch (e1) {} try { const blob = new Blob([code], { type: "application/javascript" }); const url = URL.createObjectURL(blob); await new Promise((resolve, reject) => { const s = document.createElement("script"); s.src = url; s.onload = () => { URL.revokeObjectURL(url); resolve(); }; s.onerror = reject; (document.head || document.documentElement).appendChild(s); }); return; } catch (e2) {} alert("Hypha Debugger injected, but page CSP blocks script execution (no 'unsafe-eval', no blob: in script-src).
+
+Workaround: open DevTools (F12) > Console, then paste:
+
+import('https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.mjs').then(m=>m.startDebugger({server_url:'https://hypha.aicell.io'}))"); })();
 ```
 
 Click the bookmarklet → a floating bug icon appears → click it to copy the service URL → paste into your AI agent.

@@ -6,6 +6,19 @@
  */
 import { toPng, toJpeg } from "html-to-image";
 
+/** Extract a useful string from an unknown error value. */
+function errorMessage(err: any): string {
+  if (!err) return "Unknown error";
+  if (typeof err === "string") return err;
+  if (err.message) return err.message;
+  if (err instanceof Event) return `Event: ${err.type}`;
+  try {
+    return JSON.stringify(err);
+  } catch {
+    return String(err);
+  }
+}
+
 /**
  * Resize an image data URL via a canvas. Returns a new data URL at the
  * requested format/quality. Maintains aspect ratio: fits within
@@ -21,32 +34,41 @@ async function resizeDataUrl(
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const srcW = img.naturalWidth;
-      const srcH = img.naturalHeight;
-      // Compute scale to fit within bounds (but never upscale)
-      const scale = Math.min(maxWidth / srcW, maxHeight / srcH, 1);
-      const dstW = Math.max(1, Math.round(srcW * scale));
-      const dstH = Math.max(1, Math.round(srcH * scale));
+      try {
+        const srcW = img.naturalWidth;
+        const srcH = img.naturalHeight;
+        const scale = Math.min(maxWidth / srcW, maxHeight / srcH, 1);
+        const dstW = Math.max(1, Math.round(srcW * scale));
+        const dstH = Math.max(1, Math.round(srcH * scale));
 
-      const canvas = document.createElement("canvas");
-      canvas.width = dstW;
-      canvas.height = dstH;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        reject(new Error("Could not get 2D canvas context"));
-        return;
+        const canvas = document.createElement("canvas");
+        canvas.width = dstW;
+        canvas.height = dstH;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Could not get 2D canvas context"));
+          return;
+        }
+        if (format === "jpeg") {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, dstW, dstH);
+        }
+        ctx.drawImage(img, 0, 0, dstW, dstH);
+        const mime = format === "jpeg" ? "image/jpeg" : "image/png";
+        const out = canvas.toDataURL(mime, quality);
+        resolve({ dataUrl: out, width: dstW, height: dstH });
+      } catch (drawErr: any) {
+        reject(new Error(`Canvas resize failed: ${errorMessage(drawErr)}`));
       }
-      // Fill white background for JPEG (no alpha support)
-      if (format === "jpeg") {
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, dstW, dstH);
-      }
-      ctx.drawImage(img, 0, 0, dstW, dstH);
-      const mime = format === "jpeg" ? "image/jpeg" : "image/png";
-      const out = canvas.toDataURL(mime, quality);
-      resolve({ dataUrl: out, width: dstW, height: dstH });
     };
-    img.onerror = () => reject(new Error("Failed to load image for resizing"));
+    img.onerror = (ev) =>
+      reject(
+        new Error(
+          `Failed to load captured image for resizing${
+            ev instanceof Event ? ` (${ev.type})` : ""
+          }`,
+        ),
+      );
     img.src = dataUrl;
   });
 }
@@ -122,25 +144,46 @@ export async function takeScreenshot(
     }
 
     let dataUrl: string;
-    if (fmt === "jpeg") {
-      dataUrl = await toJpeg(node, captureOptions);
-    } else {
-      dataUrl = await toPng(node, captureOptions);
+    try {
+      if (fmt === "jpeg") {
+        dataUrl = await toJpeg(node, captureOptions);
+      } else {
+        dataUrl = await toPng(node, captureOptions);
+      }
+    } catch (captureErr: any) {
+      return {
+        error: `Capture failed (html-to-image): ${errorMessage(captureErr)}`,
+      };
     }
 
-    // Resize down to fit within (maxW × maxH) and re-encode
-    const resized = await resizeDataUrl(dataUrl, maxW, maxH, fmt, qual);
-    const sizeKb = Math.round((resized.dataUrl.length * 0.75) / 1024); // rough base64 → bytes
-
-    return {
-      data: resized.dataUrl,
-      format: fmt,
-      width: resized.width,
-      height: resized.height,
-      size_kb: sizeKb,
-    };
+    // Resize down to fit within (maxW × maxH) and re-encode. If resize
+    // fails (e.g. data URL too large to load back into an Image), fall
+    // back to returning the original capture so the caller still gets
+    // something useful.
+    try {
+      const resized = await resizeDataUrl(dataUrl, maxW, maxH, fmt, qual);
+      const sizeKb = Math.round((resized.dataUrl.length * 0.75) / 1024);
+      return {
+        data: resized.dataUrl,
+        format: fmt,
+        width: resized.width,
+        height: resized.height,
+        size_kb: sizeKb,
+      };
+    } catch (resizeErr: any) {
+      const rect = node.getBoundingClientRect();
+      const sizeKb = Math.round((dataUrl.length * 0.75) / 1024);
+      return {
+        data: dataUrl,
+        format: fmt,
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        size_kb: sizeKb,
+        warning: `Resize failed, returning original: ${errorMessage(resizeErr)}`,
+      } as any;
+    }
   } catch (err: any) {
-    return { error: `Screenshot failed: ${err.message ?? err}` };
+    return { error: `Screenshot failed: ${errorMessage(err)}` };
   }
 }
 

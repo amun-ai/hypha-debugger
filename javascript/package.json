@@ -1,6 +1,6 @@
 {
   "name": "hypha-debugger",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Injectable debugger for web pages and AI agents, powered by Hypha RPC",
   "type": "module",
   "main": "dist/hypha-debugger.js",
@@ -53,6 +53,6 @@
   },
   "dependencies": {
     "html-to-image": "^1.11.0",
-    "hypha-rpc": "^0.20.97"
+    "hypha-rpc": "^0.21.40"
   }
 }

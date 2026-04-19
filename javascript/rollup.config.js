@@ -11,6 +11,22 @@ const tsPlugin = (extraOpts = {}) =>
     ...extraOpts,
   });
 
+// Rewrite bundled hypha-rpc's webpack chunk init from `this["webpackChunk..."]`
+// to `globalThis["webpackChunk..."]`. In a classic <script>, `this` is the
+// global object, but when the bundle is eval'd (e.g. from a bookmarklet that
+// bypasses CSP via fetch+eval), the enclosing factory is strict mode, making
+// nested IIFE `this` be `undefined` and the webpack init throw
+// TypeError: Cannot read properties of undefined.
+const patchWebpackThis = () => ({
+  name: "patch-webpack-this",
+  renderChunk(code) {
+    return code.replace(
+      /\bthis\[(["']webpackChunk[^"']+["'])\]/g,
+      'globalThis[$1]',
+    );
+  },
+});
+
 export default [
   // ESM build (hypha-rpc is external — users import it separately)
   {
@@ -33,7 +49,12 @@ export default [
       sourcemap: true,
       inlineDynamicImports: true,
     },
-    plugins: [resolve({ browser: true }), commonjs(), tsPlugin()],
+    plugins: [
+      resolve({ browser: true }),
+      commonjs(),
+      tsPlugin(),
+      patchWebpackThis(),
+    ],
   },
   // Minified UMD build — everything bundled
   {
@@ -45,6 +66,12 @@ export default [
       sourcemap: true,
       inlineDynamicImports: true,
     },
-    plugins: [resolve({ browser: true }), commonjs(), tsPlugin(), terser()],
+    plugins: [
+      resolve({ browser: true }),
+      commonjs(),
+      tsPlugin(),
+      terser(),
+      patchWebpackThis(),
+    ],
   },
 ];

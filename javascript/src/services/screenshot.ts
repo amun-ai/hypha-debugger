@@ -206,9 +206,11 @@ takeScreenshot.__schema__ = {
   name: "takeScreenshot",
   description:
     "Capture a screenshot of the current viewport, a specific element, or the full page. " +
-    "Returns a base64-encoded data URL, downscaled to fit within max_width × max_height " +
-    "(default 1024px) to keep the payload small enough for AI agents. Defaults to JPEG " +
-    "format at 0.75 quality for reasonable file size.",
+    "Downscaled to fit within max_width × max_height (default 1024px) to keep the payload " +
+    "small enough for AI agents. Defaults to JPEG at 0.75 quality. " +
+    "Returns: { data: 'data:image/jpeg;base64,...', format, width, height, size_kb }. " +
+    "Note: the image is in the `data` field as a full data: URL — strip the `data:...;base64,` " +
+    "prefix before base64-decoding.",
   parameters: {
     type: "object",
     properties: {

@@ -105,7 +105,11 @@ export async function executeScript(
 executeScript.__schema__ = {
   name: "executeScript",
   description:
-    'Execute arbitrary JavaScript code in the page context. Supports async/await. The last expression is auto-returned (no need for explicit "return"). Examples: "document.title", "document.querySelectorAll(\'a\').length", "await fetch(\'/api/data\').then(r => r.json())".',
+    'Execute arbitrary JavaScript code in the page context. Supports async/await. ' +
+    'The last expression is auto-returned (no need for explicit "return"). ' +
+    'Examples: "document.title", "document.querySelectorAll(\'a\').length", ' +
+    '"await fetch(\'/api/data\').then(r => r.json())". ' +
+    'Returns: { result, type } on success, or { error } on exception.',
   parameters: {
     type: "object",
     properties: {

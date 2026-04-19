@@ -124,6 +124,28 @@ export function generateSkillMd(
     "",
     "- **GET** for functions with no required parameters",
     "- **POST** with JSON body for functions with parameters",
+    "- Append `?_mode=last` to resolve the most recent instance (recommended after page reloads where the clientId changes)",
+    "",
+    "## Response format",
+    "",
+    "All functions return JSON. There are three patterns:",
+    "",
+    "**1. Data-returning functions** (e.g. `take_screenshot`, `get_page_info`, `execute_script`, `get_browser_state`, `get_html`, `get_react_tree`) return function-specific keys:",
+    "",
+    "- `take_screenshot` → `{data, format, width, height, size_kb}` where `data` is a `data:image/jpeg;base64,...` URL (note: field is `data`, not `screenshot` or `image`)",
+    "- `execute_script` → `{result, type}` (or `{error}` on exception)",
+    "- `get_browser_state` → `{url, title, header, content, footer, element_count}`",
+    "- `get_page_info` → `{url, title, viewport_width, viewport_height, ...}`",
+    "- `get_html` → `{html, length, truncated}`",
+    "",
+    "**2. Action functions** (e.g. `click_*`, `input_text`, `select_option`, `scroll`, `navigate`) return:",
+    "",
+    "- `{success: true, message: \"...\"}` — action succeeded",
+    "- `{success: false, message: \"...\"}` — action failed (element not found, etc.)",
+    "",
+    "**3. Errors from the Hypha gateway** (NOT from the service itself) return:",
+    "",
+    "- `{success: false, detail: \"...\"}` — e.g. service not found, call timed out, disconnected. If you see this, the browser tab is probably closed or the debugger crashed.",
     "",
   ].join("\n");
 
@@ -152,10 +174,15 @@ export function generateSkillMd(
       for (const [param, info] of Object.entries(props)) {
         const isRequired = required.includes(param);
         let typeStr = info.type ?? "any";
-        if (info.enum) typeStr = info.enum.map((e) => `"${e}"`).join(" | ");
+        if (info.enum) {
+          // Use HTML-escaped "or" separator; "|" breaks Markdown tables.
+          typeStr = info.enum.map((e) => `"${e}"`).join(" / ");
+        }
         if (info.items) typeStr = `${info.items.type}[]`;
+        // Escape pipes in descriptions to avoid breaking table layout
+        const desc = (info.description ?? "").replace(/\|/g, "\\|");
         functionDocs.push(
-          `| \`${param}\` | ${typeStr} | ${isRequired ? "Yes" : "No"} | ${info.description ?? ""} |`
+          `| \`${param}\` | ${typeStr} | ${isRequired ? "Yes" : "No"} | ${desc} |`
         );
       }
       functionDocs.push("");
@@ -201,14 +228,17 @@ export function generateSkillMd(
   const tips = [
     "## Tips",
     "",
-    "- **`execute_script` is the most versatile** — use it for reading state, calling APIs, DOM queries, or anything not covered by other functions. The last expression is auto-returned.",
+    "- **`execute_script` is the most versatile** — use it for reading state, calling APIs, DOM queries, or anything not covered by other functions. The last expression is auto-returned. Returns `{result, type}`.",
     "- **`get_browser_state` is the best way to see what's on the page** — it detects all interactive elements and shows them as indexed items.",
     "- **After each action, call `get_browser_state` again** — element indices change when the DOM updates.",
-    "- **Use `take_screenshot`** to visually verify the page state. Call `remove_highlights` first for a clean view.",
+    "- **Use `take_screenshot`** to visually verify the page state. The image is returned in the `data` field as a `data:image/jpeg;base64,...` URL — strip the `data:...;base64,` prefix before decoding.",
+    "- **Use `remove_highlights`** before a screenshot for a clean view.",
     "- **Use `scroll`** with an element index to scroll inside a specific container (e.g. a chat window, sidebar).",
     "- **Use `get_page_info` with `include_logs=true`** to check for JavaScript errors or debug output.",
     "- **Use `get_react_tree`** if the page uses React — it gives you component names, props, and state without needing DevTools.",
     "- **Use `navigate`** to go to other pages — same-origin navigation auto-reconnects the debugger.",
+    "- **If you get `{success: false, detail: \"Service not found\"}`** — the browser tab was closed or the debugger disconnected. The user needs to re-click the bookmarklet.",
+    "- **Append `?_mode=last`** to the URL if the service clientId changed (e.g. after page reload) — resolves to the most recent instance.",
     "- All POST endpoints accept JSON body with the parameter names as keys.",
     "",
   ].join("\n");

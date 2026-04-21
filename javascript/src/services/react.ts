@@ -33,6 +33,32 @@ function getFiberFromDOM(node: Element): FiberNode | null {
   return fiberKey ? (node as any)[fiberKey] : null;
 }
 
+/**
+ * Find the topmost DOM element that has a React fiber attached.
+ * React mounts on various nodes — #root is common but not universal
+ * (#app, #__next, body, etc.). We scan until we find one.
+ */
+function findReactRoot(): Element | null {
+  // Try common selectors first (fast path)
+  const common = ["#root", "#app", "#__next", "[data-reactroot]", "main", "body"];
+  for (const sel of common) {
+    const el = document.querySelector(sel);
+    if (el && getFiberFromDOM(el)) return el;
+  }
+  // Slow path: walk the tree, find first element with a fiber
+  const walker = document.createTreeWalker(
+    document.body,
+    NodeFilter.SHOW_ELEMENT,
+    null,
+  );
+  let node: Node | null = walker.currentNode;
+  while (node) {
+    if (node instanceof Element && getFiberFromDOM(node)) return node;
+    node = walker.nextNode();
+  }
+  return null;
+}
+
 function getComponentName(fiber: FiberNode): string {
   const { type } = fiber;
   if (!type) return "(unknown)";
@@ -146,18 +172,32 @@ export function getReactTree(
   selector?: string,
   max_depth?: number,
 ): ReactComponentInfo | { error: string } {
-  selector = selector ?? "#root";
   const maxDepth = max_depth ?? 5;
 
-  const rootEl = document.querySelector(selector);
-  if (!rootEl) {
-    return { error: `No element found for selector: ${selector}` };
+  let rootEl: Element | null;
+  let usedSelector: string;
+  if (selector) {
+    rootEl = document.querySelector(selector);
+    usedSelector = selector;
+    if (!rootEl) {
+      return { error: `No element found for selector: ${selector}` };
+    }
+  } else {
+    // Auto-detect: scan for any element with a React fiber attached
+    rootEl = findReactRoot();
+    usedSelector = rootEl?.tagName.toLowerCase() + (rootEl?.id ? "#" + rootEl.id : "") || "(auto)";
+    if (!rootEl) {
+      return {
+        error:
+          "No React root found on this page. Tried #root, #app, #__next, [data-reactroot], main, body — none had React fibers. This page may not be a React app, or React may not have rendered yet. Pass an explicit `selector` if you know the mount point.",
+      };
+    }
   }
 
   const fiber = getFiberFromDOM(rootEl);
   if (!fiber) {
     return {
-      error: `No React fiber found on element "${selector}". Is this a React app?`,
+      error: `No React fiber found on element "${usedSelector}". Is this a React app?`,
     };
   }
 
@@ -181,14 +221,15 @@ export function getReactTree(
 getReactTree.__schema__ = {
   name: "getReactTree",
   description:
-    "Inspect the React component tree starting from a DOM element. Returns component names, props, state (including hooks), and children hierarchy.",
+    "Inspect the React component tree. Returns component names, props, state (including hooks), and children hierarchy. " +
+    "When no selector is provided, auto-detects the React root by scanning common mount points (#root, #app, #__next, [data-reactroot], main, body) and then walking the DOM for any element with a React fiber attached.",
   parameters: {
     type: "object",
     properties: {
       selector: {
         type: "string",
         description:
-          'CSS selector of the React root element. Default: "#root".',
+          "CSS selector of the React root element. Omit for auto-detection.",
       },
       max_depth: {
         type: "number",

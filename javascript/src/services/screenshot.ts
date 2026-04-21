@@ -122,12 +122,18 @@ export async function takeScreenshot(
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
 
+    // 1x1 transparent PNG — used as placeholder for images that fail
+    // to load (CORS-blocked, 404, etc.) so html-to-image doesn't reject.
+    const TRANSPARENT_PIXEL =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
+
     const captureOptions: any = {
       quality: qual,
       pixelRatio: 1, // always capture at 1x — we'll resize after
       cacheBust: true,
       skipAutoScale: true,
       skipFonts: true, // CORS-blocked stylesheets can hang font inlining
+      imagePlaceholder: TRANSPARENT_PIXEL, // fallback for broken images
       filter: (el: HTMLElement) => {
         // Exclude the debugger overlay and cursor from screenshots
         return (
@@ -144,31 +150,44 @@ export async function takeScreenshot(
       captureOptions.height = viewportH;
     }
 
-    let dataUrl: string;
-    try {
+    const runCapture = async (opts: any, timeoutMs = 15000) => {
       const capturePromise =
-        fmt === "jpeg" ? toJpeg(node, captureOptions) : toPng(node, captureOptions);
-      // Hard timeout: pages with cross-origin resources can make
-      // html-to-image wait indefinitely on blocked fetches.
-      const timeoutMs = 15000;
-      dataUrl = await Promise.race<string>([
+        fmt === "jpeg" ? toJpeg(node, opts) : toPng(node, opts);
+      return Promise.race<string>([
         capturePromise,
         new Promise<string>((_, reject) =>
           setTimeout(
             () =>
               reject(
-                new Error(
-                  `Screenshot capture timed out after ${timeoutMs}ms (likely CORS-blocked resources)`,
-                ),
+                new Error(`Screenshot capture timed out after ${timeoutMs}ms`),
               ),
             timeoutMs,
           ),
         ),
       ]);
+    };
+
+    let dataUrl: string;
+    try {
+      dataUrl = await runCapture(captureOptions);
     } catch (captureErr: any) {
-      return {
-        error: `Capture failed (html-to-image): ${errorMessage(captureErr)}`,
-      };
+      // Fallback: retry without images (filter them out). Some pages have
+      // images that html-to-image can't inline even with imagePlaceholder.
+      try {
+        const noImagesOpts = {
+          ...captureOptions,
+          filter: (el: HTMLElement) => {
+            if (!captureOptions.filter(el)) return false;
+            const tag = el.tagName?.toLowerCase();
+            return tag !== "img" && tag !== "picture" && tag !== "video";
+          },
+        };
+        dataUrl = await runCapture(noImagesOpts, 10000);
+      } catch (retryErr: any) {
+        return {
+          error: `Capture failed: ${errorMessage(captureErr)} (retry without images also failed: ${errorMessage(retryErr)})`,
+        };
+      }
     }
 
     // Resize down to fit within (maxW × maxH) and re-encode. If resize

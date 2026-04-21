@@ -1,6 +1,6 @@
 {
   "name": "hypha-debugger",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Injectable debugger for web pages and AI agents, powered by Hypha RPC",
   "type": "module",
   "main": "dist/hypha-debugger.js",

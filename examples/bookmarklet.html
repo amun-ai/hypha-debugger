@@ -169,15 +169,7 @@
   <div class="card">
     <h2>Drag this to your bookmarks bar</h2>
     <a class="bookmarklet-link"
-       href="javascript:(async () =&gt; { if (window.__HYPHA_DEBUGGER__ &amp;&amp; window.__HYPHA_DEBUGGER__.instance) { alert(&quot;Hypha Debugger already running on this page.&quot;); return; } const CDN = &quot;https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js&quot;; let code = null; try { const res = await fetch(CDN, { mode: &quot;cors&quot;, cache: &quot;no-cache&quot; }); if (!res.ok) throw new Error(&quot;HTTP &quot; + res.status); code = await res.text(); } catch (e) { alert(&quot;Could not fetch Hypha Debugger from the CDN.
-
-This page may block cdn.jsdelivr.net via CSP (connect-src).
-
-Error: &quot; + e.message); return; } try { (0, eval)(code); return; } catch (e1) {} try { const blob = new Blob([code], { type: &quot;application/javascript&quot; }); const url = URL.createObjectURL(blob); await new Promise((resolve, reject) =&gt; { const s = document.createElement(&quot;script&quot;); s.src = url; s.onload = () =&gt; { URL.revokeObjectURL(url); resolve(); }; s.onerror = reject; (document.head || document.documentElement).appendChild(s); }); return; } catch (e2) {} alert(&quot;Hypha Debugger injected, but page CSP blocks script execution (no 'unsafe-eval', no blob: in script-src).
-
-Workaround: open DevTools (F12) &gt; Console, then paste:
-
-import('https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.mjs').then(m=&gt;m.startDebugger({server_url:'https://hypha.aicell.io'}))&quot;); })();"
+       href="javascript:void ((async () =&gt; { if (window.__HYPHA_DEBUGGER__ &amp;&amp; window.__HYPHA_DEBUGGER__.instance) { alert(&quot;Hypha Debugger already running on this page.&quot;); return; } const CDN = &quot;https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js&quot;; let code = null; try { const res = await fetch(CDN, { mode: &quot;cors&quot;, cache: &quot;no-cache&quot; }); if (!res.ok) throw new Error(&quot;HTTP &quot; + res.status); code = await res.text(); } catch (e) { alert(&quot;Could not fetch Hypha Debugger from the CDN.\n\nThis page may block cdn.jsdelivr.net via CSP (connect-src).\n\nError: &quot; + e.message); return; } try { (0, eval)(code); return; } catch (e1) {} try { const blob = new Blob([code], { type: &quot;application/javascript&quot; }); const url = URL.createObjectURL(blob); await new Promise((resolve, reject) =&gt; { const s = document.createElement(&quot;script&quot;); s.src = url; s.onload = () =&gt; { URL.revokeObjectURL(url); resolve(); }; s.onerror = reject; (document.head || document.documentElement).appendChild(s); }); return; } catch (e2) {} alert(&quot;Hypha Debugger injected, but page CSP blocks script execution (no 'unsafe-eval', no blob: in script-src).\n\nWorkaround: open DevTools (F12) &gt; Console, then paste:\n\nimport('https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.mjs').then(m=&gt;m.startDebugger({server_url:'https://hypha.aicell.io'}))&quot;); })());"
        onclick="event.preventDefault();alert('Drag this button to your bookmarks bar!')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
@@ -217,15 +209,7 @@ import('https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.mjs').th
     <p style="margin-bottom: 8px; color: #8b949e;">Create a new bookmark and paste this as the URL:</p>
     <div class="code-block" id="code-block">
       <button class="copy-btn" onclick="navigator.clipboard.writeText(document.getElementById('bm-code').textContent);this.textContent='Copied!';setTimeout(()=>this.textContent='Copy',1500)">Copy</button>
-      <span id="bm-code">javascript:(async () =&gt; { if (window.__HYPHA_DEBUGGER__ &amp;&amp; window.__HYPHA_DEBUGGER__.instance) { alert(&quot;Hypha Debugger already running on this page.&quot;); return; } const CDN = &quot;https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js&quot;; let code = null; try { const res = await fetch(CDN, { mode: &quot;cors&quot;, cache: &quot;no-cache&quot; }); if (!res.ok) throw new Error(&quot;HTTP &quot; + res.status); code = await res.text(); } catch (e) { alert(&quot;Could not fetch Hypha Debugger from the CDN.
-
-This page may block cdn.jsdelivr.net via CSP (connect-src).
-
-Error: &quot; + e.message); return; } try { (0, eval)(code); return; } catch (e1) {} try { const blob = new Blob([code], { type: &quot;application/javascript&quot; }); const url = URL.createObjectURL(blob); await new Promise((resolve, reject) =&gt; { const s = document.createElement(&quot;script&quot;); s.src = url; s.onload = () =&gt; { URL.revokeObjectURL(url); resolve(); }; s.onerror = reject; (document.head || document.documentElement).appendChild(s); }); return; } catch (e2) {} alert(&quot;Hypha Debugger injected, but page CSP blocks script execution (no 'unsafe-eval', no blob: in script-src).
-
-Workaround: open DevTools (F12) &gt; Console, then paste:
-
-import('https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.mjs').then(m=&gt;m.startDebugger({server_url:'https://hypha.aicell.io'}))&quot;); })();</span>
+      <span id="bm-code">javascript:void ((async () =&gt; { if (window.__HYPHA_DEBUGGER__ &amp;&amp; window.__HYPHA_DEBUGGER__.instance) { alert(&quot;Hypha Debugger already running on this page.&quot;); return; } const CDN = &quot;https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.min.js&quot;; let code = null; try { const res = await fetch(CDN, { mode: &quot;cors&quot;, cache: &quot;no-cache&quot; }); if (!res.ok) throw new Error(&quot;HTTP &quot; + res.status); code = await res.text(); } catch (e) { alert(&quot;Could not fetch Hypha Debugger from the CDN.\n\nThis page may block cdn.jsdelivr.net via CSP (connect-src).\n\nError: &quot; + e.message); return; } try { (0, eval)(code); return; } catch (e1) {} try { const blob = new Blob([code], { type: &quot;application/javascript&quot; }); const url = URL.createObjectURL(blob); await new Promise((resolve, reject) =&gt; { const s = document.createElement(&quot;script&quot;); s.src = url; s.onload = () =&gt; { URL.revokeObjectURL(url); resolve(); }; s.onerror = reject; (document.head || document.documentElement).appendChild(s); }); return; } catch (e2) {} alert(&quot;Hypha Debugger injected, but page CSP blocks script execution (no 'unsafe-eval', no blob: in script-src).\n\nWorkaround: open DevTools (F12) &gt; Console, then paste:\n\nimport('https://cdn.jsdelivr.net/npm/hypha-debugger/dist/hypha-debugger.mjs').then(m=&gt;m.startDebugger({server_url:'https://hypha.aicell.io'}))&quot;); })());</span>
     </div>
   </div>
 

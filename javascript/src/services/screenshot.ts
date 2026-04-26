@@ -1,8 +1,14 @@
 /**
  * Screenshot capture service using html-to-image.
  *
- * Images are downscaled before being returned so agents don't receive
- * multi-megabyte base64 payloads that can crash their context window.
+ * Returns image data in a format directly usable by AI agents:
+ *   - `base64`: raw base64 (no data: prefix) — what Claude/GPT image
+ *     content fields expect.
+ *   - `media_type`: e.g. "image/jpeg" — the MIME type to pair with base64.
+ *   - `data_url`: full `data:image/jpeg;base64,...` URL for HTML/preview use.
+ *
+ * Images are aggressively downscaled by default (max 800px, JPEG q=0.6)
+ * because most agent context windows can't tolerate multi-MB payloads.
  */
 import { toPng, toJpeg } from "html-to-image";
 
@@ -19,10 +25,26 @@ function errorMessage(err: any): string {
   }
 }
 
+/** Split a `data:<mime>;base64,<...>` URL into its parts. Throws on malformed. */
+function splitDataUrl(dataUrl: string): { mediaType: string; base64: string } {
+  const m = /^data:([^;,]+)(?:;[^,]*)?,(.*)$/.exec(dataUrl);
+  if (!m) throw new Error("Output is not a valid data: URL");
+  const mediaType = m[1];
+  let payload = m[2];
+  // If charset=utf-8 (no base64), html-to-image returned an SVG fallback —
+  // which is unusable for agent vision. Reject so the caller knows.
+  if (!/;base64/i.test(dataUrl)) {
+    throw new Error(
+      `Output is not base64-encoded (got ${mediaType}). Capture probably failed silently.`,
+    );
+  }
+  return { mediaType, base64: payload };
+}
+
 /**
  * Resize an image data URL via a canvas. Returns a new data URL at the
- * requested format/quality. Maintains aspect ratio: fits within
- * (maxWidth × maxHeight) without distortion.
+ * requested format/quality, fitting within (maxWidth × maxHeight) without
+ * distortion.
  */
 async function resizeDataUrl(
   dataUrl: string,
@@ -37,10 +59,13 @@ async function resizeDataUrl(
       try {
         const srcW = img.naturalWidth;
         const srcH = img.naturalHeight;
+        if (!srcW || !srcH) {
+          reject(new Error("Captured image has zero dimensions"));
+          return;
+        }
         const scale = Math.min(maxWidth / srcW, maxHeight / srcH, 1);
         const dstW = Math.max(1, Math.round(srcW * scale));
         const dstH = Math.max(1, Math.round(srcH * scale));
-
         const canvas = document.createElement("canvas");
         canvas.width = dstW;
         canvas.height = dstH;
@@ -82,7 +107,9 @@ export async function takeScreenshot(
   full_page?: boolean,
 ): Promise<
   | {
-      data: string;
+      base64: string;
+      media_type: string;
+      data_url: string;
       format: string;
       width: number;
       height: number;
@@ -90,18 +117,14 @@ export async function takeScreenshot(
     }
   | { error: string }
 > {
-  // Agent-friendly defaults: JPEG, moderate quality, capped at 1024px,
-  // viewport-only (not the entire scrollable page).
+  // Agent-friendly defaults: JPEG at q=0.6, capped at 800px.
+  // These are smaller than before because larger images crash some agents.
   const fmt = format ?? "jpeg";
-  const qual = quality ?? 0.75;
-  const maxW = max_width ?? 1024;
-  const maxH = max_height ?? 1024;
+  const qual = quality ?? 0.6;
+  const maxW = max_width ?? 800;
+  const maxH = max_height ?? 800;
   const capturePage = full_page ?? false;
 
-  // Pick target:
-  //   - explicit selector → that element
-  //   - full_page=true → document.documentElement (the entire scrollable page)
-  //   - default → viewport-sized region (clipped to window size)
   let target: Element | null;
   if (selector) {
     target = document.querySelector(selector);
@@ -116,26 +139,20 @@ export async function takeScreenshot(
 
   try {
     const node = target as HTMLElement;
-
-    // For viewport-only captures, limit html-to-image's output size
-    // to the viewport dimensions.
     const viewportW = window.innerWidth;
     const viewportH = window.innerHeight;
 
-    // 1x1 transparent PNG — used as placeholder for images that fail
-    // to load (CORS-blocked, 404, etc.) so html-to-image doesn't reject.
     const TRANSPARENT_PIXEL =
       "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
 
     const captureOptions: any = {
       quality: qual,
-      pixelRatio: 1, // always capture at 1x — we'll resize after
+      pixelRatio: 1,
       cacheBust: true,
       skipAutoScale: true,
-      skipFonts: true, // CORS-blocked stylesheets can hang font inlining
-      imagePlaceholder: TRANSPARENT_PIXEL, // fallback for broken images
+      skipFonts: true,
+      imagePlaceholder: TRANSPARENT_PIXEL,
       filter: (el: HTMLElement) => {
-        // Exclude the debugger overlay and cursor from screenshots
         return (
           el.id !== "hypha-debugger-host" &&
           el.id !== "hypha-debugger-cursor" &&
@@ -143,9 +160,7 @@ export async function takeScreenshot(
         );
       },
     };
-
     if (!selector && !capturePage) {
-      // Viewport-only capture: constrain canvas to window size
       captureOptions.width = viewportW;
       captureOptions.height = viewportH;
     }
@@ -171,8 +186,7 @@ export async function takeScreenshot(
     try {
       dataUrl = await runCapture(captureOptions);
     } catch (captureErr: any) {
-      // Fallback: retry without images (filter them out). Some pages have
-      // images that html-to-image can't inline even with imagePlaceholder.
+      // Fallback: retry without images
       try {
         const noImagesOpts = {
           ...captureOptions,
@@ -190,32 +204,43 @@ export async function takeScreenshot(
       }
     }
 
-    // Resize down to fit within (maxW × maxH) and re-encode. If resize
-    // fails (e.g. data URL too large to load back into an Image), fall
-    // back to returning the original capture so the caller still gets
-    // something useful.
+    // Resize + re-encode through canvas. This both downsizes and ensures
+    // a clean base64 PNG/JPEG (rather than a possibly-broken html-to-image
+    // SVG-via-data-URL that some agent runtimes reject).
+    let resized: { dataUrl: string; width: number; height: number };
     try {
-      const resized = await resizeDataUrl(dataUrl, maxW, maxH, fmt, qual);
-      const sizeKb = Math.round((resized.dataUrl.length * 0.75) / 1024);
-      return {
-        data: resized.dataUrl,
-        format: fmt,
-        width: resized.width,
-        height: resized.height,
-        size_kb: sizeKb,
-      };
+      resized = await resizeDataUrl(dataUrl, maxW, maxH, fmt, qual);
     } catch (resizeErr: any) {
-      const rect = node.getBoundingClientRect();
-      const sizeKb = Math.round((dataUrl.length * 0.75) / 1024);
       return {
-        data: dataUrl,
-        format: fmt,
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-        size_kb: sizeKb,
-        warning: `Resize failed, returning original: ${errorMessage(resizeErr)}`,
-      } as any;
+        error: `Resize failed: ${errorMessage(resizeErr)} (this usually means the captured image was malformed; try lowering max_width or use full_page:false)`,
+      };
     }
+
+    // Validate the final data URL — should be data:image/jpeg;base64,...
+    let parts: { mediaType: string; base64: string };
+    try {
+      parts = splitDataUrl(resized.dataUrl);
+    } catch (validateErr: any) {
+      return { error: `Output validation failed: ${errorMessage(validateErr)}` };
+    }
+
+    // Sanity-check: a valid JPEG/PNG is at least a few hundred bytes.
+    if (parts.base64.length < 200) {
+      return {
+        error: `Output too small (${parts.base64.length} chars base64) — capture likely failed`,
+      };
+    }
+
+    const sizeKb = Math.round((parts.base64.length * 0.75) / 1024);
+    return {
+      base64: parts.base64,
+      media_type: parts.mediaType,
+      data_url: resized.dataUrl,
+      format: fmt,
+      width: resized.width,
+      height: resized.height,
+      size_kb: sizeKb,
+    };
   } catch (err: any) {
     return { error: `Screenshot failed: ${errorMessage(err)}` };
   }
@@ -225,11 +250,12 @@ takeScreenshot.__schema__ = {
   name: "takeScreenshot",
   description:
     "Capture a screenshot of the current viewport, a specific element, or the full page. " +
-    "Downscaled to fit within max_width × max_height (default 1024px) to keep the payload " +
-    "small enough for AI agents. Defaults to JPEG at 0.75 quality. " +
-    "Returns: { data: 'data:image/jpeg;base64,...', format, width, height, size_kb }. " +
-    "Note: the image is in the `data` field as a full data: URL — strip the `data:...;base64,` " +
-    "prefix before base64-decoding.",
+    "Downscaled to fit within max_width × max_height (default 800px) and JPEG-encoded at " +
+    "quality 0.6 by default for agent-friendly payload sizes. " +
+    "Returns: { base64, media_type, data_url, format, width, height, size_kb }. " +
+    "Use `base64` (raw base64, no prefix) directly with Claude/GPT image content fields. " +
+    "Use `data_url` for HTML <img src=...> previews. " +
+    "On failure returns { error }.",
   parameters: {
     type: "object",
     properties: {
@@ -242,22 +268,22 @@ takeScreenshot.__schema__ = {
         type: "string",
         enum: ["png", "jpeg"],
         description:
-          'Image format. Default: "jpeg" (much smaller than PNG). Use "png" for sharp text.',
+          'Image format. Default: "jpeg" (much smaller than PNG). Use "png" only when sharp text really matters.',
       },
       quality: {
         type: "number",
         description:
-          "JPEG quality (0–1). Default: 0.75. Ignored for PNG. Lower = smaller payload.",
+          "JPEG quality (0–1). Default: 0.6. Ignored for PNG. Lower = smaller payload.",
       },
       max_width: {
         type: "number",
         description:
-          "Maximum output width in pixels. Default: 1024. Image is scaled down preserving aspect ratio.",
+          "Maximum output width in pixels. Default: 800. Image scaled down preserving aspect ratio.",
       },
       max_height: {
         type: "number",
         description:
-          "Maximum output height in pixels. Default: 1024. Image is scaled down preserving aspect ratio.",
+          "Maximum output height in pixels. Default: 800. Image scaled down preserving aspect ratio.",
       },
       full_page: {
         type: "boolean",

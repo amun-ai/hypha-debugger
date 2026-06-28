@@ -8,7 +8,9 @@ import { buildAgentInstruction } from "../../javascript/src/relay/instruction.js
 const $ = (id: string) => document.getElementById(id)!;
 const dot = $("dot");
 try {
-  $("ver").textContent = "v" + chrome.runtime.getManifest().version;
+  const v = "v" + chrome.runtime.getManifest().version;
+  $("title").textContent = `Hypha Debugger ${v}`;
+  document.title = `Hypha Debugger ${v}`;
 } catch {
   /* ignore */
 }

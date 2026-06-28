@@ -15,6 +15,10 @@ import { ConnectorRuntimeChannel } from "./runtime-channel.js";
 const connectors = new Map<number, RelayConnector>();
 
 function getConnect(): (cfg: any) => Promise<any> {
+  // Test/extension hook: allow overriding the transport (also useful for custom
+  // Hypha clients). Undefined in normal use.
+  const override = (globalThis as any).__HYPHA_CONNECT__;
+  if (typeof override === "function") return override;
   const mod: any = hyphaRpc as any;
   if (mod.connectToServer) return mod.connectToServer;
   if (mod.hyphaWebsocketClient?.connectToServer)

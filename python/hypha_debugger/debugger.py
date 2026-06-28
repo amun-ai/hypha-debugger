@@ -47,32 +47,19 @@ def _build_service_url(server_url: str, service_id: str) -> str:
 
 
 def _build_instruction_block(service_url: str, token: str = "") -> str:
-    """Build the instruction block with copy-paste commands for remote access.
+    """One-sentence instruction to paste into an AI agent.
 
-    Returns a formatted string that can be pasted directly into an AI agent chat.
+    Says what it is and where the API is; the agent reads the URL
+    (get_skill_md) for everything else.
     """
-    auth = f' -H "Authorization: Bearer $TOKEN"' if token else ""
-    lines = [
-        "# Hypha Remote Debugger — Python Process",
-        "# A remote debugger is attached to a running Python process.",
-        "# You can execute code, read/write files, inspect variables, and more.",
-        "# Call get_skill_md for full API docs with all available functions.",
-        "",
-        f'SERVICE_URL="{service_url}"',
-    ]
-    if token:
-        lines.append(f'TOKEN="{token}"')
-    lines += [
-        "",
-        "# Execute Python code:",
-        f'curl -X POST "$SERVICE_URL/execute_code"{auth}'
-        ' -H "Content-Type: application/json"'
-        " -d '{\"code\": \"import sys; sys.version\"}'",
-        "",
-        "# Get full API docs (all functions, parameters, examples):",
-        f'curl "$SERVICE_URL/get_skill_md"{auth}',
-    ]
-    return "\n".join(lines)
+    auth = (
+        f" (auth header: Authorization: Bearer {token})" if token else ""
+    )
+    return (
+        "A Hypha debugger is attached to this live Python process — call its HTTP "
+        f"API at {service_url} to run code and inspect the process; GET "
+        f"{service_url}/get_skill_md for the full tool list and usage{auth}."
+    )
 
 
 def _print_session_info(

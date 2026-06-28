@@ -26,12 +26,13 @@ interface FunctionSchema {
  */
 export function generateSkillMd(
   serviceFunctions: Record<string, { __schema__?: FunctionSchema }>,
-  serviceUrl: string
+  serviceUrl: string,
+  pageContext?: { title?: string; url?: string }
 ): string {
   const frontmatter = [
     "---",
     "name: web-debugger",
-    "description: Remote web page debugger. Inspect DOM, take screenshots, execute JavaScript, fill forms, click elements, and navigate pages — all via HTTP API calls.",
+    "description: A Hypha debugger injected into a LIVE web page in a real browser. Remotely inspect the DOM, take screenshots, run JavaScript, fill forms, click/type by index, inspect React, and navigate — all via HTTP API calls.",
     "compatibility: Requires network access to the Hypha server. Works with any HTTP client (curl, fetch, Python requests).",
     "metadata:",
     '  version: "0.1"',
@@ -39,12 +40,20 @@ export function generateSkillMd(
     "---",
   ].join("\n");
 
+  const attached =
+    pageContext?.title || pageContext?.url
+      ? `**Currently attached to:** ${pageContext.title ? `"${pageContext.title}"` : ""}${pageContext.url ? ` — ${pageContext.url}` : ""} (call \`get_page_info\` for live details).`
+      : "Call `get_page_info` to see the page you are attached to.";
+
   const intro = [
     "",
-    "# Web Debugger Skill",
+    "# Web Debugger — control a live web page",
     "",
-    "This skill allows you to remotely debug and interact with a web page through HTTP API endpoints.",
-    "Pick the approach that fits your task — they can be combined freely.",
+    "**What this is:** a Hypha debugger has been injected into a LIVE web page running in a real browser, and this document is its HTTP API. You (an AI agent) can remotely inspect and control that exact page — read and modify the DOM, click and type, take screenshots, run JavaScript, and inspect React components. Changes you make are applied to the real page immediately.",
+    "",
+    attached,
+    "",
+    "Every function below is an HTTP endpoint under the service URL. Pick the approach that fits your task — they combine freely.",
     "",
     "## Approaches",
     "",

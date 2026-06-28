@@ -13,6 +13,7 @@ import {
   SERVICE_META,
 } from "./relay/service-map.js";
 import { buildServiceUrl, randomHex } from "./relay/service-url.js";
+import { buildAgentInstruction } from "./relay/instruction.js";
 
 export interface DebuggerConfig {
   /** Hypha server URL. Required. */
@@ -299,15 +300,12 @@ export class HyphaDebugger {
       );
     }
 
-    console.log(`[hypha-debugger] Service URL: ${serviceUrl}`);
-    if (sessionToken) {
-      console.log(`[hypha-debugger] Token: ${sessionToken}`);
-      console.log(
-        `[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info' -H 'Authorization: Bearer ${sessionToken}'`
-      );
-    } else {
-      console.log(`[hypha-debugger] Test:\n  curl '${serviceUrl}/get_page_info'`);
-    }
+    console.log(
+      `[hypha-debugger] ${buildAgentInstruction(serviceUrl, {
+        token: sessionToken,
+        target: typeof document !== "undefined" ? document.title : undefined,
+      })}`,
+    );
 
     const session: DebugSession = {
       service_id: fullServiceId,
@@ -378,51 +376,12 @@ export class HyphaDebugger {
     return def;
   }
 
-  /** Build the instruction block for the overlay panel. */
+  /** One-sentence instruction shown in the overlay panel. */
   private buildInstructionBlock(serviceUrl: string, token: string): string {
-    const auth = token ? ` -H "Authorization: Bearer $TOKEN"` : "";
-    const lines = [
-      `# Hypha Remote Debugger — Web Page`,
-      `# A debugger is attached to a live web page.`,
-      `# You can remotely inspect, interact with, and control this page via the HTTP API below.`,
-      `#`,
-      `# APPROACHES (pick what fits your task):`,
-      `#   - execute_script: Run arbitrary JS — fastest for reading/modifying page state, DOM queries, API calls`,
-      `#   - get_browser_state + click/input/select by index: Visual interaction with the page as a user would`,
-      `#   - get_html / query_dom: Read DOM structure with CSS selectors`,
-      `#   - get_react_tree: Inspect React component props, state, and hooks`,
-      `#   - take_screenshot: Visual verification of page state`,
-      `#`,
-      `# All POST endpoints accept JSON body with parameter names as keys.`,
-      ``,
-      `SERVICE_URL="${serviceUrl}"`,
-    ];
-    if (token) {
-      lines.push(`TOKEN="${token}"`);
-    }
-    lines.push(
-      ``,
-      `# Execute JavaScript (most versatile — read state, call APIs, modify DOM):`,
-      `curl -X POST "$SERVICE_URL/execute_script"${auth} -H "Content-Type: application/json" -d '{"code": "document.title"}'`,
-      ``,
-      `# Smart DOM analysis (indexed interactive elements for click/type/select):`,
-      `curl "$SERVICE_URL/get_browser_state"${auth}`,
-      ``,
-      `# Interact by element index:`,
-      `curl -X POST "$SERVICE_URL/click_element_by_index"${auth} -H "Content-Type: application/json" -d '{"index": 3}'`,
-      `curl -X POST "$SERVICE_URL/input_text"${auth} -H "Content-Type: application/json" -d '{"index": 5, "text": "hello"}'`,
-      ``,
-      `# Screenshot + React inspection:`,
-      `curl "$SERVICE_URL/take_screenshot"${auth}`,
-      `curl "$SERVICE_URL/get_react_tree"${auth}`,
-      ``,
-      `# Navigate (auto-reconnects for same-origin):`,
-      `curl -X POST "$SERVICE_URL/navigate"${auth} -H "Content-Type: application/json" -d '{"url": "/other-page"}'`,
-      ``,
-      `# Full API docs:`,
-      `curl "$SERVICE_URL/get_skill_md"${auth}`,
-    );
-    return lines.join("\n");
+    return buildAgentInstruction(serviceUrl, {
+      token,
+      target: typeof document !== "undefined" ? document.title : undefined,
+    });
   }
 
   /**

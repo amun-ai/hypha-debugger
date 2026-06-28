@@ -2,6 +2,8 @@
  * Side panel UI — connection controls + live activity log for the active tab.
  * Replaces the floating overlay. Talks to the SW via runtime messaging.
  */
+import { buildAgentInstruction } from "../../javascript/src/relay/instruction.js";
+
 interface TabState {
   status: string;
   serviceUrl: string;
@@ -153,9 +155,7 @@ $("copySkill").addEventListener("click", () => {
   const url = state(currentTabId).serviceUrl;
   if (!url) return;
   navigator.clipboard.writeText(
-    `A Hypha debugger is attached to a live web page. Control it via its HTTP API.\n` +
-      `SERVICE_URL="${url}"\n` +
-      `Full API docs: curl "$SERVICE_URL/get_skill_md"`,
+    buildAgentInstruction(url, { target: hostOf(currentUrl) }),
   );
 });
 $("clear").addEventListener("click", () => {

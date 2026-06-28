@@ -78,7 +78,11 @@ export function createServiceMap(ctx: ServiceMapContext = {}): ServiceEntry[] {
       if ((f as any).__schema__) schemaFns[name] = f;
     }
     const url = ctx.getServiceUrl?.() ?? "{SERVICE_URL}";
-    return generateSkillMd(schemaFns, url);
+    const pageContext =
+      typeof document !== "undefined"
+        ? { title: document.title, url: location?.href }
+        : undefined;
+    return generateSkillMd(schemaFns, url, pageContext);
   };
   (getSkillMd as any).__schema__ = {
     name: "getSkillMd",

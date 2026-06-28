@@ -39,7 +39,11 @@ export function wrapFn(fn: any): any {
       typeof args[0] === "object" &&
       !Array.isArray(args[0]) &&
       !(args[0] instanceof Date) &&
-      args[0].constructor === Object
+      // Plain-object check that is realm-agnostic (kwargs may be created in a
+      // different realm — e.g. hypha-rpc's HTTP handler, or relayed across a
+      // postMessage/extension boundary). `constructor === Object` fails across
+      // realms, so also accept the constructor name and a null prototype.
+      isPlainObject(args[0])
     ) {
       const kw = args[0];
       const keys = Object.keys(kw);
@@ -76,4 +80,14 @@ export function wrapFn(fn: any): any {
 
   if (schema) (wrapper as any).__schema__ = schema;
   return wrapper;
+}
+
+/** Realm-agnostic "is this a plain object (kwargs bag)?" check. */
+function isPlainObject(x: any): boolean {
+  const proto = Object.getPrototypeOf(x);
+  return (
+    proto === null ||
+    proto === Object.prototype ||
+    proto?.constructor?.name === "Object"
+  );
 }

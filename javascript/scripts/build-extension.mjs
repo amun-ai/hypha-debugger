@@ -56,6 +56,30 @@ for (const e of entries) {
 for (const f of ["manifest.json", "offscreen.html", "sidepanel.html", "INSTALL.txt"]) {
   copyFileSync(p(f), p("dist", f));
 }
+
+// Keep the GH Pages download link version-stamped (cache-bust + visible version)
+// so users never get a stale cached zip.
+try {
+  const version = JSON.parse(readFileSync(p("manifest.json"), "utf8")).version;
+  const docs = resolve(EXT, "..", "docs", "index.html");
+  if (existsSync(docs)) {
+    let html = readFileSync(docs, "utf8");
+    html = html
+      .replace(
+        /(href="hypha-debugger-extension\.zip\?v=)[^"]*(")/,
+        `$1${version}$2`,
+      )
+      .replace(
+        /(<span id="ext-version"[^>]*>)v[^<]*(<\/span>)/,
+        `$1v${version}$2`,
+      );
+    writeFileSync(docs, html);
+    console.log(`  stamped docs download link → v${version}`);
+  }
+} catch (e) {
+  console.warn("  (could not stamp docs version:", e.message, ")");
+}
+
 console.log("extension built → extension/dist/ (load unpacked in chrome://extensions)");
 
 function patchHyphaRpc(file) {

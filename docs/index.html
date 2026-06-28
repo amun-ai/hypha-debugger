@@ -356,6 +356,14 @@
       Hypha Debugger
     </a>
     <p class="bm-hint">Then click it on any web page to inject the debugger. No install needed.</p>
+    <details class="bm-advanced" style="margin:16px auto 0;max-width:520px;text-align:left;">
+      <summary style="cursor:pointer;color:var(--text-muted);font-size:.9rem;">Advanced options</summary>
+      <label for="server-url" style="display:block;margin:14px 0 6px;font-size:.85rem;color:var(--text-muted);">Hypha server URL</label>
+      <input id="server-url" type="url" spellcheck="false" autocomplete="off"
+             value="https://hypha.aicell.io" placeholder="https://hypha.aicell.io"
+             style="width:100%;padding:10px 12px;background:var(--code-bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font:inherit;font-size:.9rem;box-sizing:border-box;" />
+      <p class="bm-hint" style="margin-top:8px;">Override the Hypha server the debugger connects to — the button above and the copy code update automatically. Default: <code>https://hypha.aicell.io</code></p>
+    </details>
     <div class="bm-code-wrap">
       <details>
         <summary>Or copy the bookmarklet code manually</summary>
@@ -621,6 +629,42 @@ function switchTab(e, id) {
   e.target.classList.add('active');
   document.getElementById(id).classList.add('active');
 }
+</script>
+<script>
+/* Advanced: let users point the bookmarklet at a custom Hypha server.
+   The inlined bundle's autoStart() reads sessionStorage["__hypha_debugger_config__"]
+   before falling back to the default server. So to override, we splice a tiny shim
+   that seeds that key right after the bookmarklet wrapper's first `try{` — no bundle
+   rebuild needed. Updates both the drag link and the manual-copy code. */
+(function () {
+  var DEFAULT = "https://hypha.aicell.io";
+  var link = document.querySelector(".bm-link");
+  var raw = document.getElementById("bm-raw");
+  var input = document.getElementById("server-url");
+  if (!link || !input) return;
+  var baseHref = link.getAttribute("href");        // entities decoded, still %-escaped
+  var baseRaw = raw ? raw.textContent : baseHref;
+  function build(base, url) {
+    url = (url || "").trim();
+    if (!url || url === DEFAULT) return base;
+    var payload = JSON.stringify({ server_url: url });        // {"server_url":"…"}
+    // 2nd arg is a JS string literal of the payload (quotes safely escaped)
+    var shim = "try{sessionStorage.setItem('__hypha_debugger_config__'," +
+               JSON.stringify(payload) + ")}catch(e){}";
+    // escape the chars the javascript: URL parser would strip / percent-decode
+    shim = shim.replace(/%/g, "%25").replace(/#/g, "%23")
+               .replace(/\n/g, "%0A").replace(/\r/g, "%0D").replace(/\t/g, "%09");
+    // insert before the bundle runs (function replacement → no $-pattern hazards)
+    return base.replace("try{", function () { return "try{" + shim; });
+  }
+  function update() {
+    var v = input.value;
+    link.setAttribute("href", build(baseHref, v));
+    if (raw) raw.textContent = build(baseRaw, v);
+  }
+  input.addEventListener("input", update);
+  update();
+})();
 </script>
 </body>
 </html>

@@ -51,7 +51,24 @@ export function forgetTab(tabId: number): void {
 }
 
 async function cdpEval(tabId: number, code: string): Promise<any> {
-  await ensureAttached(tabId);
+  if (!chrome.debugger) {
+    return {
+      error:
+        "execute_script is disabled. Enable “Allow running JS” in the Hypha Debugger side panel " +
+        "(it needs the debugger permission). The DOM tools (get_browser_state, click_element_by_index, " +
+        "query_dom, …) work without it.",
+    };
+  }
+  try {
+    await ensureAttached(tabId);
+  } catch (e: any) {
+    return {
+      error:
+        "Could not attach the debugger to this tab: " +
+        (e?.message ?? e) +
+        ". Enable “Allow running JS” in the side panel, or this may be a restricted page (chrome://, Web Store).",
+    };
+  }
   const expression = `(async () => { ${autoReturn(code)} })()`;
   const res: any = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
     expression,

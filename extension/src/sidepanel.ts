@@ -112,6 +112,38 @@ $("clear").addEventListener("click", () => {
 $("pinTab").addEventListener("click", () => {
   chrome.runtime.sendMessage({ __ctl: "pinActiveTab" });
 });
+
+// "Allow running JS" — request/remove the optional debugger permission (needs a
+// user gesture, which this click provides).
+const enableExec = $("enableExec") as HTMLInputElement;
+try {
+  chrome.permissions
+    .contains({ permissions: ["debugger"] })
+    .then((has: boolean) => {
+      enableExec.checked = has;
+    });
+} catch {
+  /* ignore */
+}
+enableExec.addEventListener("change", async () => {
+  try {
+    if (enableExec.checked) {
+      const granted = await chrome.permissions.request({ permissions: ["debugger"] });
+      enableExec.checked = granted;
+      appendLog(
+        granted
+          ? "execute_script enabled (debugger permission granted)"
+          : "debugger permission denied — execute_script stays off",
+        granted ? "result" : "error",
+      );
+    } else {
+      await chrome.permissions.remove({ permissions: ["debugger"] });
+      appendLog("execute_script disabled", "status");
+    }
+  } catch (e: any) {
+    appendLog("permission change failed: " + (e?.message ?? e), "error");
+  }
+});
 // Save the server URL as the user edits it (persists across sessions, even
 // without connecting).
 let saveTimer: any;

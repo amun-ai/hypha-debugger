@@ -1,8 +1,10 @@
-Hypha Debugger — Chrome extension
-=================================
+Hypha Debugger — Browser Automation (Chrome extension)
+======================================================
 
-Attach a remote Hypha debugger to ANY web page (including strict-CSP sites that
-block the bookmarklet) and control it from an AI agent over Hypha RPC.
+Drive your whole browser from an AI agent over Hypha RPC. The agent can open,
+close, switch, and navigate TABS, and inspect & control the current page (read
+the DOM, screenshot, click/type by index, inspect React). Works on ANY site,
+including strict-CSP pages that block the bookmarklet.
 
 
 INSTALL (load unpacked)
@@ -19,20 +21,30 @@ Requires Chrome/Edge version 116 or newer.
 
 RUN / USE
 ---------
-1. Open the web page you want to debug.
-2. Click the Hypha Debugger toolbar icon — a side panel opens.
-3. (Optional) Set the Hypha server URL (default: https://hypha.aicell.io).
-4. Click "Connect this tab".
+1. Click the Hypha Debugger toolbar icon — a side panel opens.
+2. (Optional) Set the Hypha server URL (default: https://hypha.aicell.io).
+3. Click "Connect browser" — one connection controls the whole browser.
    - The side panel shows a SERVICE URL and a live activity log.
-5. Copy the SERVICE URL and paste it into your AI agent.
-   The agent controls the page over HTTP, e.g.:
+4. Copy the SERVICE URL and paste it into your AI agent.
+   The agent drives the browser over HTTP, e.g.:
 
-     curl "<SERVICE_URL>/get_browser_state?_mode=last"
-     curl "<SERVICE_URL>/get_skill_md?_mode=last"      # full API + usage
+     curl "<SERVICE_URL>/list_tabs?_mode=last"
+     curl -X POST "<SERVICE_URL>/open_tab" -d '{"url":"https://example.com"}'
+     curl "<SERVICE_URL>/get_browser_state?_mode=last"   # current target tab
+     curl "<SERVICE_URL>/get_skill_md?_mode=last"        # full API + usage
 
-   The agent only needs the URL — GET <SERVICE_URL>/get_skill_md tells it
-   everything it can do.
-6. Click "Disconnect" (or close the tab) to stop.
+   The agent only needs the URL — GET <SERVICE_URL>/get_skill_md lists every
+   tool (tabs + page) and how to use them.
+5. Click "Disconnect" to stop.
+
+TOOLS (summary; get_skill_md has the full list)
+-----------------------------------------------
+Browser:  list_tabs, get_active_tab, open_tab, close_tab, activate_tab,
+          navigate, reload_tab, go_back, go_forward
+Page (act on the current target tab — set it with activate_tab / open_tab):
+          get_browser_state, click_element_by_index, input_text, select_option,
+          scroll, take_screenshot, query_dom, get_html, get_react_tree,
+          execute_script, get_page_info, ...
 
 
 NOTES

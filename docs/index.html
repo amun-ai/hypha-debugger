@@ -416,13 +416,13 @@ Target (Browser / Python)         Hypha Server          Remote Client (AI Agent)
 
 <!-- ═══════════════════ CHROME EXTENSION ═══════════════════ -->
 <section id="extension">
-  <h2>Chrome Extension — works on any site</h2>
+  <h2>Chrome Extension — full browser automation</h2>
   <p style="color:var(--text-muted);max-width:680px">
-    The bookmarklet runs inside the page, so a strict <code>connect-src</code> Content Security
-    Policy can block its connection to Hypha. The <strong>MV3 extension</strong> runs the connection
-    in a privileged background context the page can't restrict — so it works on <strong>any
-    site</strong>, survives navigation, and shows a live log in a side panel. Same remote API as the
-    bookmarklet.
+    The <strong>MV3 extension</strong> turns the whole browser into a tool your AI agent can drive:
+    <strong>open / close / switch / navigate tabs</strong> and inspect &amp; control the current page
+    (DOM, screenshots, click/type by index, React). The connection runs in a privileged background
+    context the page can't restrict — so it works on <strong>any site</strong> (including strict-CSP
+    pages that block the bookmarklet), survives navigation, and shows a live log in a side panel.
   </p>
 
   <p style="margin:18px 0">
@@ -436,10 +436,11 @@ Target (Browser / Python)         Hypha Server          Remote Client (AI Agent)
     <li><strong>Download &amp; unzip</strong> the file above.</li>
     <li><strong>Open</strong> <code>chrome://extensions</code> and turn on <em>Developer mode</em> (top-right).</li>
     <li><strong>Load unpacked</strong> → select the unzipped folder.</li>
-    <li><strong>Click the toolbar icon</strong> to open the side panel, open any page, then
-      <strong>Connect this tab</strong>. The panel shows the <strong>service URL</strong> + live logs.</li>
-    <li><strong>Paste the service URL</strong> into your AI agent — it controls the page over HTTP,
-      exactly like the bookmarklet (<code>GET &lt;url&gt;/get_skill_md</code> for the full API).</li>
+    <li><strong>Click the toolbar icon</strong> to open the side panel, then
+      <strong>Connect browser</strong>. The panel shows the <strong>service URL</strong> + live logs.</li>
+    <li><strong>Paste the service URL</strong> into your AI agent — it drives the browser over HTTP
+      (<code>list_tabs</code>, <code>open_tab</code>, <code>get_browser_state</code>, …;
+      <code>GET &lt;url&gt;/get_skill_md</code> for the full API).</li>
   </ol>
   <p style="color:var(--text-dim);font-size:.85rem;margin-top:10px">
     Requires Chrome/Edge 116+. Prefer to build from source? See

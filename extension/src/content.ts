@@ -1,14 +1,14 @@
 /**
- * Content script (isolated world) — the in-page Agent. Runs our full service
- * map against the real DOM and answers relay `call`s from the offscreen
- * Connector via the SW. Immune to the page's `script-src` (extension-injected)
- * and never touches the network (so the page's `connect-src` is irrelevant).
+ * Content script (isolated world) — the page executor. Runs page-level tools
+ * against the real DOM on request from the background SW. Injected on demand
+ * into the target tab. Immune to the page's script-src; never touches the
+ * network (page connect-src is irrelevant). get_react_tree is delegated to the
+ * MAIN-world helper (fiber expandos aren't visible in the isolated world).
  *
- * get_react_tree needs page-world fiber expandos, so it is delegated to the
- * MAIN-world helper (main-world.js) over CustomEvents.
+ * Args arrive already mapped to positional (the offscreen applied baseWrapFn),
+ * so we call the raw service functions directly.
  */
-import { RelayAgent } from "../../javascript/src/relay/agent.js";
-import { AgentRuntimeChannel } from "./runtime-channel.js";
+import { createServiceMap } from "../../javascript/src/relay/service-map.js";
 
 const FLAG = "__HYPHA_DEBUGGER_AGENT__";
 
@@ -16,16 +16,14 @@ function callMainWorldReact(selector?: string, depth?: number): Promise<any> {
   return new Promise((resolve) => {
     const id = Math.random().toString(36).slice(2);
     const onResp = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (!detail || detail.id !== id) return;
+      const d = (e as CustomEvent).detail;
+      if (!d || d.id !== id) return;
       window.removeEventListener("hypha-debugger:react-response", onResp);
-      resolve(detail.result);
+      resolve(d.result);
     };
     window.addEventListener("hypha-debugger:react-response", onResp);
     window.dispatchEvent(
-      new CustomEvent("hypha-debugger:react-request", {
-        detail: { id, selector, depth },
-      }),
+      new CustomEvent("hypha-debugger:react-request", { detail: { id, selector, depth } }),
     );
     setTimeout(() => {
       window.removeEventListener("hypha-debugger:react-response", onResp);
@@ -34,26 +32,30 @@ function callMainWorldReact(selector?: string, depth?: number): Promise<any> {
   });
 }
 
-function forward(type: string, data: any): void {
-  try {
-    chrome.runtime.sendMessage({ __hyphaUi: true, type, ...data }).catch(() => {});
-  } catch {
-    /* ignore */
-  }
-}
-
 (function main() {
   const w = window as any;
-  if (w[FLAG]) return; // guard against double injection
+  if (w[FLAG]) return; // idempotent — injected on demand, possibly repeatedly
   w[FLAG] = true;
 
-  const channel = new AgentRuntimeChannel();
-  const agent = new RelayAgent(channel, {
-    reactBridge: callMainWorldReact,
-    onLog: (msg, kind) => forward("log", { msg, kind, ts: Date.now() }),
-    onStatus: (status, detail) => forward("status", { status, detail }),
-    onReady: (info) => forward("ready", info),
+  const map = new Map(createServiceMap().map((e) => [e.name, e.fn]));
+
+  chrome.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: any) => {
+    if (!msg || !msg.__hyphaPage) return;
+    (async () => {
+      try {
+        const args = msg.args || [];
+        let value: any;
+        if (msg.method === "get_react_tree") {
+          value = await callMainWorldReact(args[0], args[1]);
+        } else {
+          const fn = map.get(msg.method);
+          value = fn ? await fn(...args) : { error: `Unknown page method: ${msg.method}` };
+        }
+        sendResponse({ value });
+      } catch (e: any) {
+        sendResponse({ __error: e?.message ?? String(e) });
+      }
+    })();
+    return true; // async response
   });
-  agent.start();
-  forward("status", { status: "agent-ready" });
 })();

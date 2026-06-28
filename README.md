@@ -14,8 +14,8 @@ Click the bookmarklet → a floating bug icon appears → click it to copy the s
 
 > **Strict-CSP sites:** a page with a strict Content Security Policy can block the bookmarklet (its
 > `script-src`/`connect-src` stop in-page scripts from loading and connecting out). For those sites —
-> or to debug any site reliably — use the **[Chrome extension](https://amun-ai.github.io/hypha-debugger/#extension)**,
-> which runs the connection in a privileged context the page can't restrict.
+> or to debug any site reliably — use the **[Chrome extension](https://amun-ai.github.io/hypha-debugger/#extension)** — full browser
+> automation (open/close/navigate tabs + control pages) in a privileged context the page can't restrict.
 
 ## Python — One command
 

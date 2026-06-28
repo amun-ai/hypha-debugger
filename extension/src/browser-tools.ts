@@ -9,9 +9,63 @@
  * script. activate_tab / open_tab set the target.
  */
 
+import { autoReturn } from "../../javascript/src/services/execute.js";
+
 export interface BrowserToolCtx {
   getTarget: () => number | null;
   setTarget: (tabId: number) => void;
+}
+
+// ---- CDP eval: run JS in the page bypassing its CSP (incl. no-unsafe-eval) --
+// This is the only way to execute arbitrary code on a strict-CSP page; it's how
+// Puppeteer/Playwright/DevTools do it. Lazily attaches the debugger to the tab
+// (shows Chrome's "debugging this browser" banner) and turns on Page.setBypassCSP.
+const attached = new Set<number>();
+
+async function ensureAttached(tabId: number): Promise<void> {
+  if (attached.has(tabId)) return;
+  await chrome.debugger.attach({ tabId }, "1.3");
+  attached.add(tabId);
+  try {
+    await chrome.debugger.sendCommand({ tabId }, "Page.enable");
+    await chrome.debugger.sendCommand({ tabId }, "Page.setBypassCSP", { enabled: true });
+    await chrome.debugger.sendCommand({ tabId }, "Runtime.enable");
+  } catch {
+    /* best-effort */
+  }
+}
+
+export async function detachAll(): Promise<void> {
+  for (const id of [...attached]) {
+    try {
+      await chrome.debugger.detach({ tabId: id });
+    } catch {
+      /* ignore */
+    }
+  }
+  attached.clear();
+}
+
+export function forgetTab(tabId: number): void {
+  attached.delete(tabId);
+}
+
+async function cdpEval(tabId: number, code: string): Promise<any> {
+  await ensureAttached(tabId);
+  const expression = `(async () => { ${autoReturn(code)} })()`;
+  const res: any = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
+    expression,
+    returnByValue: true,
+    awaitPromise: true,
+    userGesture: true,
+    replMode: true,
+  });
+  if (res?.exceptionDetails) {
+    const ex = res.exceptionDetails;
+    return { error: ex.exception?.description || ex.exception?.value || ex.text || "Evaluation error" };
+  }
+  const r = res?.result || {};
+  return { result: r.value !== undefined ? r.value : r.description ?? null, type: r.type };
 }
 
 type Tool = {
@@ -191,6 +245,20 @@ export const BROWSER_TOOLS: Record<string, Tool> = {
       await chrome.tabs.goForward(await resolveTarget(ctx));
       return { success: true };
     },
+  },
+
+  execute_script: {
+    schema: {
+      name: "execute_script",
+      description:
+        "Run arbitrary JavaScript in the target tab's page context and return the result. Uses the Chrome debugger (Page.setBypassCSP), so it works even on strict-CSP pages that block 'unsafe-eval'. The last expression is auto-returned; async code is awaited. Attaching shows Chrome's 'debugging this browser' banner.",
+      parameters: {
+        type: "object",
+        properties: { code: { type: "string", description: "JavaScript to execute" } },
+        required: ["code"],
+      },
+    },
+    run: async (ctx, [code]) => cdpEval(await resolveTarget(ctx), String(code ?? "")),
   },
 };
 

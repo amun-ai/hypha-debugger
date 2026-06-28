@@ -53,9 +53,12 @@ NOTES
   so the page's Content Security Policy can't block it.
 - Persistent: the connection survives Chrome's service-worker sleep and is
   restored automatically.
-- "execute_script" (arbitrary JS) needs the page to allow eval; if it doesn't,
-  use the DOM tools (get_browser_state, click_element_by_index, query_dom, ...)
-  which never need it.
+- "execute_script" runs JavaScript on ANY page — even strict-CSP pages that block
+  'unsafe-eval' — because it uses the Chrome debugger (Page.setBypassCSP), the same
+  way Puppeteer/Playwright/DevTools do. The first execute_script attaches the
+  debugger to the tab, so Chrome shows a yellow "Hypha Debugger started debugging
+  this browser" banner; it goes away when you Disconnect. (The DOM tools never
+  need the debugger.)
 
 Homepage / docs:  https://amun-ai.github.io/hypha-debugger/
 Source:           https://github.com/amun-ai/hypha-debugger/tree/main/extension

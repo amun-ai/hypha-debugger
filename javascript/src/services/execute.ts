@@ -26,7 +26,7 @@ function isCspEvalError(e: any): boolean {
  *   "for(...) {}"               → unchanged (control flow)
  *   "return 42"                 → unchanged (explicit return)
  */
-function autoReturn(code: string): string {
+export function autoReturn(code: string): string {
   const trimmed = code.trim();
   // Already has a return statement? Leave it alone.
   if (/\breturn\b/.test(trimmed)) return trimmed;

@@ -420,9 +420,11 @@ Target (Browser / Python)         Hypha Server          Remote Client (AI Agent)
   <p style="color:var(--text-muted);max-width:680px">
     The <strong>MV3 extension</strong> turns the whole browser into a tool your AI agent can drive:
     <strong>open / close / switch / navigate tabs</strong> and inspect &amp; control the current page
-    (DOM, screenshots, click/type by index, React). The connection runs in a privileged background
-    context the page can't restrict — so it works on <strong>any site</strong> (including strict-CSP
-    pages that block the bookmarklet), survives navigation, and shows a live log in a side panel.
+    (DOM, screenshots, click/type by index, React), plus <strong>run JavaScript on any page — even
+    strict-CSP ones</strong> (it uses the Chrome debugger to bypass <code>unsafe-eval</code>, like
+    Puppeteer/Playwright). The connection runs in a privileged background context the page can't
+    restrict — so it works on <strong>any site</strong>, survives navigation, and shows a live log
+    in a side panel.
   </p>
 
   <p style="margin:18px 0">

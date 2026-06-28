@@ -8,7 +8,13 @@
  *  - the Hypha connection itself lives in the offscreen document; the SW keeps
  *    it alive (alarm + recreate) and restores it from storage (restart tolerance)
  */
-import { BROWSER_TOOLS, BROWSER_TOOL_NAMES, type BrowserToolCtx } from "./browser-tools.js";
+import {
+  BROWSER_TOOLS,
+  BROWSER_TOOL_NAMES,
+  detachAll,
+  forgetTab,
+  type BrowserToolCtx,
+} from "./browser-tools.js";
 
 let targetTabId: number | null = null;
 const ctx: BrowserToolCtx = {
@@ -106,6 +112,7 @@ async function connectBrowser(config: any): Promise<void> {
 async function disconnectBrowser(): Promise<void> {
   await chrome.storage.local.set({ hyphaConnected: false });
   chrome.runtime.sendMessage({ __off: "disconnect" }).catch(() => {});
+  await detachAll(); // release any chrome.debugger attachments (clears the banner)
 }
 
 /** Recreate the offscreen + reconnect if we should be connected (keepalive). */
@@ -144,9 +151,14 @@ chrome.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: any)
   }
 });
 
-// Keep the target sensible if it closes.
+// Keep the target sensible if it closes; drop any debugger attachment for it.
 chrome.tabs.onRemoved.addListener((tabId: number) => {
   if (tabId === targetTabId) targetTabId = null;
+  forgetTab(tabId);
+});
+// If the user dismisses the debugger banner ("Cancel"), forget the attachment.
+chrome.debugger?.onDetach?.addListener((source: any) => {
+  if (source?.tabId != null) forgetTab(source.tabId);
 });
 
 chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});

@@ -4,26 +4,18 @@ Remote debugger for web pages and Python processes — designed for AI agents. I
 
 **[Homepage & Bookmarklet Install](https://amun-ai.github.io/hypha-debugger/)** | [npm](https://www.npmjs.com/package/hypha-debugger) | [PyPI](https://pypi.org/project/hypha-debugger/)
 
-## JavaScript — Bookmarklet (any page, no install)
+## JavaScript — Bookmarklet (no install)
 
 Grab the bookmarklet from the **[install page](https://amun-ai.github.io/hypha-debugger/)** — drag
-the button to your bookmarks bar, then click it on any web page.
-
-It is **fully self-contained**: the entire minified bundle is inlined into the `javascript:` URL, so
-clicking it loads **nothing** from the network. Because the code runs as the bookmarklet body itself
-(a user action), it is exempt from the page's Content Security Policy `script-src` — it works even on
-strict pages like `script-src 'self' 'nonce-…'` that block CDN scripts, `eval`, and blob URLs.
-
-> The bookmarklet is ~226 KB of inlined code (most of it is `hypha-rpc`, the RPC transport). Chrome's
-> bookmark/URL limit is ~2 MB, so it fits comfortably. The [install page](https://amun-ai.github.io/hypha-debugger/)
-> has a **Copy** button for manual install; the raw string is also regenerated to `dist/bookmarklet.txt`
-> by `npm run build:bookmarklet`.
+the button to your bookmarks bar, then click it on any web page. It injects the debugger script from
+the CDN and auto-starts.
 
 Click the bookmarklet → a floating bug icon appears → click it to copy the service URL → paste into your AI agent.
 
-> **Note:** the bookmarklet bypasses `script-src`, but network connections it makes (the WebSocket to
-> `hypha.aicell.io`) are still governed by the page's `connect-src`. Most pages don't restrict that;
-> if one does, use the `pip install` route or add a script tag on a page you control.
+> **Strict-CSP sites:** a page with a strict Content Security Policy can block the bookmarklet (its
+> `script-src`/`connect-src` stop in-page scripts from loading and connecting out). For those sites —
+> or to debug any site reliably — use the **[Chrome extension](https://amun-ai.github.io/hypha-debugger/#extension)**,
+> which runs the connection in a privileged context the page can't restrict.
 
 ## Python — One command
 

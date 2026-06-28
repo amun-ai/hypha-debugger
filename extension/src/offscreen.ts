@@ -41,17 +41,53 @@ function makeProxy(name: string, schema: any): any {
   return baseWrapFn(inner);
 }
 
+function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${what} timed out after ${Math.round(ms / 1000)}s`)), ms),
+    ),
+  ]);
+}
+
 async function connect(config: any): Promise<void> {
-  if (connecting || server) return;
+  if (connecting) return; // a connect is already in flight
   connecting = true;
+  // Tear down any stale/dead connection first so we never wedge on it.
+  if (server) {
+    try {
+      server.disconnect?.();
+    } catch {
+      /* ignore */
+    }
+    server = null;
+  }
   try {
     await chrome.storage.local.set({ hyphaStatus: "connecting" });
     ui({ type: "status", status: "connecting" });
+    ui({ type: "log", msg: `connecting to ${config.server_url} …`, kind: "status" });
     const connectToServer = getConnect();
-    const cfg: any = { server_url: config.server_url };
+    const baseCfg: any = { server_url: config.server_url };
+    if (config.token) baseCfg.token = config.token;
+    const cfg: any = { ...baseCfg };
     if (config.workspace) cfg.workspace = config.workspace;
-    if (config.token) cfg.token = config.token;
-    server = await connectToServer(cfg);
+
+    try {
+      server = await withTimeout(connectToServer(cfg), 25000, "connect");
+    } catch (e: any) {
+      // A saved workspace may be stale/expired — retry with a fresh one.
+      if (config.workspace) {
+        ui({ type: "log", msg: "retrying without the saved workspace …", kind: "status" });
+        server = await withTimeout(connectToServer({ ...baseCfg }), 25000, "connect");
+      } else {
+        throw e;
+      }
+    }
+    ui({
+      type: "log",
+      msg: `connected (workspace ${server.config?.workspace ?? "?"}), registering tools …`,
+      kind: "status",
+    });
 
     const catalog = buildCatalog();
     const serviceId = config.service_id || `web-debugger-${randomHex(16)}`;
@@ -80,7 +116,11 @@ async function connect(config: any): Promise<void> {
     };
     def.get_skill_md = baseWrapFn(skillFn);
 
-    const info = await server.registerService(def);
+    const info: any = await withTimeout<any>(
+      server.registerService(def),
+      25000,
+      "register service",
+    );
     serviceUrl = buildServiceUrl(config.server_url, info.id ?? serviceId);
     const workspace = server.config?.workspace ?? "";
     const token = config.require_token
@@ -106,12 +146,15 @@ async function connect(config: any): Promise<void> {
 }
 
 async function disconnect(): Promise<void> {
+  // Clear the reference first so a hung server.disconnect() can never block a
+  // subsequent connect; do the actual teardown best-effort in the background.
+  const s = server;
+  server = null;
   try {
-    await server?.disconnect?.();
+    s?.disconnect?.();
   } catch {
     /* ignore */
   }
-  server = null;
   await chrome.storage.local.set({ hyphaStatus: "disconnected", hyphaServiceUrl: "" });
   ui({ type: "status", status: "disconnected" });
 }

@@ -147,12 +147,18 @@ async function handleCall(method: string, args: any[]): Promise<any> {
 
 // ---- connect / disconnect (from side panel) ------------------------------
 async function connectBrowser(config: any): Promise<void> {
-  // Pin the tab that's active at connect time as the stable target.
-  const [a] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (a?.id != null) ctx.setTarget(a.id);
-  await chrome.storage.local.set({ hyphaConnected: true, hyphaConfig: config });
-  await ensureOffscreen();
-  chrome.runtime.sendMessage({ __off: "connect", config }).catch(() => {});
+  try {
+    // Pin the tab that's active at connect time as the stable target.
+    const [a] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (a?.id != null) ctx.setTarget(a.id);
+    await chrome.storage.local.set({ hyphaConnected: true, hyphaConfig: config });
+    await ensureOffscreen();
+    // The freshly-loaded offscreen auto-connects from storage; also nudge an
+    // already-open one. Either path connects (offscreen guards against double).
+    chrome.runtime.sendMessage({ __off: "connect", config }).catch(() => {});
+  } catch (e: any) {
+    ui({ type: "status", status: "error", detail: "setup failed: " + (e?.message ?? e) });
+  }
 }
 
 /** Pin the currently active tab as the target (from the side panel). */

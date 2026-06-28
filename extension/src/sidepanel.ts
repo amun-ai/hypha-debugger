@@ -106,6 +106,15 @@ $("clear").addEventListener("click", () => {
 $("pinTab").addEventListener("click", () => {
   chrome.runtime.sendMessage({ __ctl: "pinActiveTab" });
 });
+// Save the server URL as the user edits it (persists across sessions, even
+// without connecting).
+let saveTimer: any;
+serverInput.addEventListener("input", () => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    chrome.storage.local.set({ hyphaServerUrl: serverInput.value.trim() });
+  }, 300);
+});
 
 (async () => {
   // Restore the live connection state from storage so re-opening the panel

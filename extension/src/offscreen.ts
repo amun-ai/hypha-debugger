@@ -66,6 +66,7 @@ async function connect(config: any): Promise<void> {
     await chrome.storage.local.set({ hyphaStatus: "connecting" });
     ui({ type: "status", status: "connecting" });
     ui({ type: "log", msg: `connecting to ${config.server_url} …`, kind: "status" });
+    console.log("[hypha-offscreen] connecting to", config.server_url);
     const connectToServer = getConnect();
     const baseCfg: any = { server_url: config.server_url };
     if (config.token) baseCfg.token = config.token;
@@ -138,6 +139,9 @@ async function connect(config: any): Promise<void> {
     ui({ type: "status", status: "connected", detail: serviceUrl });
   } catch (e: any) {
     server = null;
+    // Also log to the offscreen's own console so it can be inspected via
+    // chrome://extensions → "Inspect views: offscreen.html".
+    console.error("[hypha-offscreen] connect failed:", e);
     await chrome.storage.local.set({ hyphaStatus: "error", hyphaServiceUrl: "" });
     ui({ type: "status", status: "error", detail: e?.message ?? String(e) });
   } finally {

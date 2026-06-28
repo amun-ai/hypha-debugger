@@ -7,7 +7,11 @@ import { buildAgentInstruction } from "../../javascript/src/relay/instruction.js
 
 const $ = (id: string) => document.getElementById(id)!;
 const dot = $("dot");
-const tabLabel = $("tab");
+try {
+  $("ver").textContent = "v" + chrome.runtime.getManifest().version;
+} catch {
+  /* ignore */
+}
 const serverInput = $("server") as HTMLInputElement;
 const wsInput = $("workspace") as HTMLInputElement;
 const tokenInput = $("token") as HTMLInputElement;
@@ -127,7 +131,6 @@ serverInput.addEventListener("input", () => {
   if (r.hyphaServerUrl) serverInput.value = r.hyphaServerUrl;
   if (r.hyphaStatus) status = r.hyphaStatus;
   if (r.hyphaServiceUrl) serviceUrl = r.hyphaServiceUrl;
-  tabLabel.textContent = "browser-wide";
   render();
   // Ask the SW to replay the current target tab.
   chrome.runtime.sendMessage({ __ctl: "getStatus" }).catch(() => {});

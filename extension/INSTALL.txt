@@ -1,0 +1,49 @@
+Hypha Debugger — Chrome extension
+=================================
+
+Attach a remote Hypha debugger to ANY web page (including strict-CSP sites that
+block the bookmarklet) and control it from an AI agent over Hypha RPC.
+
+
+INSTALL (load unpacked)
+-----------------------
+1. Unzip this folder somewhere permanent (don't delete it after loading — Chrome
+   loads the extension from this folder).
+2. Open Chrome (or Edge) and go to:  chrome://extensions
+3. Turn ON "Developer mode" (toggle, top-right).
+4. Click "Load unpacked" and select THIS folder (the one containing manifest.json).
+5. The "Hypha Debugger" extension appears. Pin it for easy access (optional).
+
+Requires Chrome/Edge version 116 or newer.
+
+
+RUN / USE
+---------
+1. Open the web page you want to debug.
+2. Click the Hypha Debugger toolbar icon — a side panel opens.
+3. (Optional) Set the Hypha server URL (default: https://hypha.aicell.io).
+4. Click "Connect this tab".
+   - The side panel shows a SERVICE URL and a live activity log.
+5. Copy the SERVICE URL and paste it into your AI agent.
+   The agent controls the page over HTTP, e.g.:
+
+     curl "<SERVICE_URL>/get_browser_state?_mode=last"
+     curl "<SERVICE_URL>/get_skill_md?_mode=last"      # full API + usage
+
+   The agent only needs the URL — GET <SERVICE_URL>/get_skill_md tells it
+   everything it can do.
+6. Click "Disconnect" (or close the tab) to stop.
+
+
+NOTES
+-----
+- Works on any site: the connection runs in the extension's background context,
+  so the page's Content Security Policy can't block it.
+- Persistent: the connection survives Chrome's service-worker sleep and is
+  restored automatically.
+- "execute_script" (arbitrary JS) needs the page to allow eval; if it doesn't,
+  use the DOM tools (get_browser_state, click_element_by_index, query_dom, ...)
+  which never need it.
+
+Homepage / docs:  https://amun-ai.github.io/hypha-debugger/
+Source:           https://github.com/amun-ai/hypha-debugger/tree/main/extension

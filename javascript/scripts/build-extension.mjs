@@ -53,7 +53,7 @@ for (const e of entries) {
   if (e.patch) patchHyphaRpc(p(e.out));
   console.log("  built", e.out);
 }
-for (const f of ["manifest.json", "offscreen.html", "sidepanel.html"]) {
+for (const f of ["manifest.json", "offscreen.html", "sidepanel.html", "INSTALL.txt"]) {
   copyFileSync(p(f), p("dist", f));
 }
 console.log("extension built → extension/dist/ (load unpacked in chrome://extensions)");

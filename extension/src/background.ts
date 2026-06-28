@@ -21,8 +21,46 @@ const ctx: BrowserToolCtx = {
   getTarget: () => targetTabId,
   setTarget: (id) => {
     targetTabId = id;
+    // Persist so the pinned tab survives SW reaping (otherwise the next call
+    // would fall back to whatever tab is active now).
+    try {
+      chrome.storage.session?.set?.({ hyphaTarget: id });
+    } catch {
+      /* ignore */
+    }
+    void emitTarget(id);
   },
 };
+
+/** Restore the pinned target after an SW wake; verify it still exists. */
+async function hydrateTarget(): Promise<void> {
+  if (targetTabId != null) {
+    try {
+      await chrome.tabs.get(targetTabId);
+      return;
+    } catch {
+      targetTabId = null;
+    }
+  }
+  try {
+    const r = await chrome.storage.session.get("hyphaTarget");
+    if (r.hyphaTarget != null) {
+      await chrome.tabs.get(r.hyphaTarget);
+      targetTabId = r.hyphaTarget;
+    }
+  } catch {
+    targetTabId = null;
+  }
+}
+
+async function emitTarget(id: number): Promise<void> {
+  try {
+    const t = await chrome.tabs.get(id);
+    ui({ type: "target", tab: { id: t.id, title: t.title, url: t.url } });
+  } catch {
+    /* ignore */
+  }
+}
 
 // ---- offscreen lifecycle -------------------------------------------------
 let creating: Promise<void> | null = null;
@@ -75,6 +113,7 @@ async function ensureContent(tabId: number): Promise<void> {
 // ---- dispatch a tool call ------------------------------------------------
 async function handleCall(method: string, args: any[]): Promise<any> {
   ui({ type: "log", msg: `${method}(${summarize(args)})`, kind: "call" });
+  await hydrateTarget(); // restore the pinned tab if the SW was reaped
   try {
     let value: any;
     if (BROWSER_TOOL_NAMES.has(method)) {
@@ -83,8 +122,10 @@ async function handleCall(method: string, args: any[]): Promise<any> {
       let tabId = targetTabId;
       if (tabId == null) {
         const [a] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-        tabId = a?.id ?? null;
-        if (tabId != null) targetTabId = tabId;
+        if (a?.id != null) {
+          ctx.setTarget(a.id); // pin it so we stick to it from now on
+          tabId = a.id;
+        }
       }
       if (tabId == null) throw new Error("No target tab — open or activate a tab first");
       await ensureContent(tabId);
@@ -103,11 +144,18 @@ async function handleCall(method: string, args: any[]): Promise<any> {
 
 // ---- connect / disconnect (from side panel) ------------------------------
 async function connectBrowser(config: any): Promise<void> {
+  // Pin the tab that's active at connect time as the stable target.
   const [a] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  if (a?.id != null) targetTabId = a.id;
+  if (a?.id != null) ctx.setTarget(a.id);
   await chrome.storage.local.set({ hyphaConnected: true, hyphaConfig: config });
   await ensureOffscreen();
   chrome.runtime.sendMessage({ __off: "connect", config }).catch(() => {});
+}
+
+/** Pin the currently active tab as the target (from the side panel). */
+async function pinActiveTab(): Promise<void> {
+  const [a] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  if (a?.id != null) ctx.setTarget(a.id);
 }
 async function disconnectBrowser(): Promise<void> {
   await chrome.storage.local.set({ hyphaConnected: false });
@@ -148,6 +196,14 @@ chrome.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: any)
     void connectBrowser(msg.config);
   } else if (msg.__ctl === "disconnect") {
     void disconnectBrowser();
+  } else if (msg.__ctl === "pinActiveTab") {
+    void pinActiveTab();
+  } else if (msg.__ctl === "getStatus") {
+    // Side panel just opened — replay current target so it can show it.
+    void (async () => {
+      await hydrateTarget();
+      if (targetTabId != null) await emitTarget(targetTabId);
+    })();
   }
 });
 

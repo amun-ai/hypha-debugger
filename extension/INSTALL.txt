@@ -37,6 +37,16 @@ RUN / USE
    tool (tabs + page) and how to use them.
 5. Click "Disconnect" to stop.
 
+TARGET TAB (which page the agent controls)
+-------------------------------------------
+Page tools act on a fixed TARGET tab — the tab that was active when you clicked
+Connect. Switching tabs in your browser does NOT move it (so you can keep
+browsing while the agent works on its tab). To change the target:
+  - click "Pin current tab" in the side panel, or
+  - have the agent call activate_tab(tab_id) or open_tab(url).
+The side panel shows the current target tab. It survives the browser putting the
+extension to sleep.
+
 TOOLS (summary; get_skill_md has the full list)
 -----------------------------------------------
 Browser:  list_tabs, get_active_tab, open_tab, close_tab, activate_tab,

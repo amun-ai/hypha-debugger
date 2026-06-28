@@ -43,6 +43,13 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
 }
 
+function setTarget(tab: { id: number; title?: string; url?: string }): void {
+  const el = $("targetTab");
+  const label = tab.title || tab.url || `tab ${tab.id}`;
+  el.textContent = label;
+  el.setAttribute("title", `${tab.title || ""}\n${tab.url || ""}`);
+}
+
 chrome.runtime.onMessage.addListener((m: any) => {
   if (!m || !m.__ui) return;
   if (m.type === "log") {
@@ -57,6 +64,8 @@ chrome.runtime.onMessage.addListener((m: any) => {
     serviceUrl = m.service_url;
     appendLog(`connected → ${m.service_url}`, "result");
     render();
+  } else if (m.type === "target" && m.tab) {
+    setTarget(m.tab);
   }
 });
 
@@ -94,11 +103,23 @@ $("copySkill").addEventListener("click", () => {
 $("clear").addEventListener("click", () => {
   logsEl.innerHTML = "";
 });
+$("pinTab").addEventListener("click", () => {
+  chrome.runtime.sendMessage({ __ctl: "pinActiveTab" });
+});
 
 (async () => {
-  const r = await chrome.storage.local.get(["hyphaServerUrl", "hyphaConnected"]);
+  // Restore the live connection state from storage so re-opening the panel
+  // shows the URL/status without a disconnect/reconnect.
+  const r = await chrome.storage.local.get([
+    "hyphaServerUrl",
+    "hyphaStatus",
+    "hyphaServiceUrl",
+  ]);
   if (r.hyphaServerUrl) serverInput.value = r.hyphaServerUrl;
-  if (r.hyphaConnected) status = "connected";
+  if (r.hyphaStatus) status = r.hyphaStatus;
+  if (r.hyphaServiceUrl) serviceUrl = r.hyphaServiceUrl;
   tabLabel.textContent = "browser-wide";
   render();
+  // Ask the SW to replay the current target tab.
+  chrome.runtime.sendMessage({ __ctl: "getStatus" }).catch(() => {});
 })();

@@ -45,6 +45,7 @@ async function connect(config: any): Promise<void> {
   if (connecting || server) return;
   connecting = true;
   try {
+    await chrome.storage.local.set({ hyphaStatus: "connecting" });
     ui({ type: "status", status: "connecting" });
     const connectToServer = getConnect();
     const cfg: any = { server_url: config.server_url };
@@ -85,10 +86,19 @@ async function connect(config: any): Promise<void> {
     const token = config.require_token
       ? await server.generateToken({ expires_in: 86400 })
       : "";
+    // Persist so the side panel can show the URL even if it (re)opens after the
+    // live "ready" message, or the SW cycled.
+    await chrome.storage.local.set({
+      hyphaStatus: "connected",
+      hyphaServiceUrl: serviceUrl,
+      hyphaToken: token,
+      hyphaWorkspace: workspace,
+    });
     ui({ type: "ready", service_url: serviceUrl, token, workspace });
     ui({ type: "status", status: "connected", detail: serviceUrl });
   } catch (e: any) {
     server = null;
+    await chrome.storage.local.set({ hyphaStatus: "error", hyphaServiceUrl: "" });
     ui({ type: "status", status: "error", detail: e?.message ?? String(e) });
   } finally {
     connecting = false;
@@ -102,6 +112,7 @@ async function disconnect(): Promise<void> {
     /* ignore */
   }
   server = null;
+  await chrome.storage.local.set({ hyphaStatus: "disconnected", hyphaServiceUrl: "" });
   ui({ type: "status", status: "disconnected" });
 }
 

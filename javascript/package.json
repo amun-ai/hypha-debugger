@@ -1,6 +1,6 @@
 {
   "name": "hypha-debugger",
-  "version": "0.2.9",
+  "version": "0.3.0",
   "description": "Injectable debugger for web pages and AI agents, powered by Hypha RPC",
   "type": "module",
   "main": "dist/hypha-debugger.js",
@@ -18,6 +18,8 @@
   ],
   "scripts": {
     "build": "rollup -c && tsc --declaration --emitDeclarationOnly --outDir dist",
+    "postbuild": "node scripts/build-bookmarklet.mjs",
+    "build:bookmarklet": "node scripts/build-bookmarklet.mjs",
     "dev": "rollup -c -w",
     "test": "vitest run",
     "test:watch": "vitest",

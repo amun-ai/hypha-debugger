@@ -414,6 +414,41 @@ Target (Browser / Python)         Hypha Server          Remote Client (AI Agent)
 
 <hr class="divider">
 
+<!-- ═══════════════════ CHROME EXTENSION ═══════════════════ -->
+<section id="extension">
+  <h2>Chrome Extension — works on any site</h2>
+  <p style="color:var(--text-muted);max-width:680px">
+    The bookmarklet runs inside the page, so a strict <code>connect-src</code> Content Security
+    Policy can block its connection to Hypha. The <strong>MV3 extension</strong> runs the connection
+    in a privileged background context the page can't restrict — so it works on <strong>any
+    site</strong>, survives navigation, and shows a live log in a side panel. Same remote API as the
+    bookmarklet.
+  </p>
+
+  <p style="margin:18px 0">
+    <a class="bm-link" href="hypha-debugger-extension.zip" download
+       style="display:inline-flex;font-size:1rem;padding:12px 22px">
+      ⬇ Download extension (.zip)
+    </a>
+  </p>
+
+  <ol class="steps">
+    <li><strong>Download &amp; unzip</strong> the file above.</li>
+    <li><strong>Open</strong> <code>chrome://extensions</code> and turn on <em>Developer mode</em> (top-right).</li>
+    <li><strong>Load unpacked</strong> → select the unzipped folder.</li>
+    <li><strong>Click the toolbar icon</strong> to open the side panel, open any page, then
+      <strong>Connect this tab</strong>. The panel shows the <strong>service URL</strong> + live logs.</li>
+    <li><strong>Paste the service URL</strong> into your AI agent — it controls the page over HTTP,
+      exactly like the bookmarklet (<code>GET &lt;url&gt;/get_skill_md</code> for the full API).</li>
+  </ol>
+  <p style="color:var(--text-dim);font-size:.85rem;margin-top:10px">
+    Requires Chrome/Edge 116+. Prefer to build from source? See
+    <a href="https://github.com/amun-ai/hypha-debugger/tree/main/extension">extension/</a> in the repo.
+  </p>
+</section>
+
+<hr class="divider">
+
 <!-- ═══════════════════ QUICK START ═══════════════════ -->
 <section id="quick-start">
   <h2>Quick Start</h2>

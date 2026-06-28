@@ -16,15 +16,15 @@ import {
   type BrowserToolCtx,
 } from "./browser-tools.js";
 
+// The pinned target tab. storage.local is the single source of truth (survives
+// the SW being reaped); targetTabId is just a hot cache hydrated on each call.
 let targetTabId: number | null = null;
 const ctx: BrowserToolCtx = {
   getTarget: () => targetTabId,
   setTarget: (id) => {
     targetTabId = id;
-    // Persist so the pinned tab survives SW reaping (otherwise the next call
-    // would fall back to whatever tab is active now).
     try {
-      chrome.storage.session?.set?.({ hyphaTarget: id });
+      chrome.storage.local.set({ hyphaTarget: id });
     } catch {
       /* ignore */
     }
@@ -32,24 +32,27 @@ const ctx: BrowserToolCtx = {
   },
 };
 
-/** Restore the pinned target after an SW wake; verify it still exists. */
+/**
+ * Authoritative read of the pinned target from storage on every call, so a
+ * reaped SW (which loses targetTabId) never silently falls back to the active
+ * tab. Verifies the tab still exists; clears it if it was closed.
+ */
 async function hydrateTarget(): Promise<void> {
-  if (targetTabId != null) {
-    try {
-      await chrome.tabs.get(targetTabId);
-      return;
-    } catch {
-      targetTabId = null;
-    }
-  }
   try {
-    const r = await chrome.storage.session.get("hyphaTarget");
-    if (r.hyphaTarget != null) {
-      await chrome.tabs.get(r.hyphaTarget);
-      targetTabId = r.hyphaTarget;
+    const r = await chrome.storage.local.get("hyphaTarget");
+    const id = r.hyphaTarget;
+    if (id != null) {
+      try {
+        await chrome.tabs.get(id);
+        targetTabId = id;
+        return;
+      } catch {
+        await chrome.storage.local.remove("hyphaTarget");
+      }
     }
-  } catch {
     targetTabId = null;
+  } catch {
+    /* keep whatever we had */
   }
 }
 
@@ -199,8 +202,25 @@ chrome.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: any)
   } else if (msg.__ctl === "pinActiveTab") {
     void pinActiveTab();
   } else if (msg.__ctl === "getStatus") {
-    // Side panel just opened — replay current target so it can show it.
+    // Side panel just opened — replay the live connection state + target so it
+    // never shows "connected" with a blank URL.
     void (async () => {
+      const s = await chrome.storage.local.get([
+        "hyphaStatus",
+        "hyphaServiceUrl",
+        "hyphaToken",
+        "hyphaWorkspace",
+      ]);
+      if (s.hyphaServiceUrl) {
+        ui({
+          type: "ready",
+          service_url: s.hyphaServiceUrl,
+          token: s.hyphaToken || "",
+          workspace: s.hyphaWorkspace || "",
+        });
+      } else if (s.hyphaStatus) {
+        ui({ type: "status", status: s.hyphaStatus });
+      }
       await hydrateTarget();
       if (targetTabId != null) await emitTarget(targetTabId);
     })();

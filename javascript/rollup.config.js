@@ -57,6 +57,22 @@ const patchWebpackPublicPath = () => ({
   },
 });
 
+// hypha-rpc resolves typed-array constructors at module init with
+// `typedArrayToDtypeKeys.push(eval(arrType))` (arrType is a name like
+// "Int8Array"). `eval` is blocked on strict-CSP pages (no 'unsafe-eval'),
+// throwing immediately on load. Resolve the constructor from globalThis instead
+// — identical result, CSP-safe. Matches the `.push(eval(IDENT))` form only, so
+// it never touches `eval(script.content)` (a member expr, on-demand feature).
+const patchHyphaRpcEval = () => ({
+  name: "patch-hypha-rpc-eval",
+  renderChunk(code) {
+    return code.replace(
+      /\.push\(eval\(([A-Za-z_$][\w$]*)\)\)/g,
+      ".push(globalThis[$1])",
+    );
+  },
+});
+
 export default [
   // ESM build (hypha-rpc is external — users import it separately)
   {
@@ -85,6 +101,7 @@ export default [
       tsPlugin(),
       patchWebpackThis(),
       patchWebpackPublicPath(),
+      patchHyphaRpcEval(),
     ],
   },
   // Minified UMD build — everything bundled
@@ -104,6 +121,7 @@ export default [
       terser(),
       patchWebpackThis(),
       patchWebpackPublicPath(),
+      patchHyphaRpcEval(),
     ],
   },
   // Slim minified UMD build — same features, squeezed as hard as is safe.
@@ -149,6 +167,7 @@ export default [
       }),
       patchWebpackThis(),
       patchWebpackPublicPath(),
+      patchHyphaRpcEval(),
     ],
   },
 ];

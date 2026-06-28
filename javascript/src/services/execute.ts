@@ -3,6 +3,18 @@
  */
 
 /**
+ * Detect the EvalError thrown when a page's Content Security Policy blocks the
+ * Function constructor / eval (no 'unsafe-eval'). Chrome throws an EvalError
+ * whose message mentions "unsafe-eval" / "Content Security Policy".
+ */
+function isCspEvalError(e: any): boolean {
+  if (!e) return false;
+  if (e instanceof EvalError) return true;
+  const msg = String(e.message || e);
+  return /unsafe-eval|Content Security Policy|call to .*Function/i.test(msg);
+}
+
+/**
  * Attempt to auto-return the last expression in a code block.
  * If the code doesn't contain an explicit `return`, we try to
  * add one to the last expression statement so the result is captured.
@@ -48,12 +60,24 @@ export async function executeScript(
   const timeoutMs = timeout_ms ?? 10000;
 
   try {
-    // Try with auto-return first, fall back to original code if syntax error
+    // Try with auto-return first, fall back to original code if syntax error.
+    // NOTE: running arbitrary code fundamentally requires the Function
+    // constructor, which strict CSP (no 'unsafe-eval') blocks. There is no
+    // CSP-safe alternative for execute_script — detect that and report clearly.
     let execCode = autoReturn(code);
     let fn: Function;
     try {
       fn = new Function("return (async () => {" + execCode + "})()");
-    } catch {
+    } catch (e: any) {
+      if (isCspEvalError(e)) {
+        return {
+          error:
+            "execute_script is unavailable on this page: its Content Security " +
+            "Policy blocks dynamic code evaluation ('unsafe-eval' not allowed). " +
+            "Use the DOM/interaction services (get_browser_state, click_element_by_index, " +
+            "query_dom, etc.) instead — they do not need eval.",
+        };
+      }
       // Auto-return broke the syntax — use original code
       fn = new Function("return (async () => {" + code + "})()");
     }

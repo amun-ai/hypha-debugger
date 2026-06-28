@@ -2,13 +2,15 @@
  * Wrap a function with correct, unminified parameter names for hypha-rpc.
  *
  * In production builds, Babel/Terser minifies parameter names (e.g. 'code' → 'e').
- * hypha-rpc's getParamNames() parses Function.toString() to map kwargs to
+ * hypha-rpc's getFunctionInfo() parses Function.toString() to map kwargs to
  * positional args. With minified names, kwargs like {code: '...'} can't be
  * mapped and args are silently dropped.
  *
- * This helper uses new Function() to create a wrapper whose parameter names
- * are taken from the function's __schema__ property, so hypha-rpc always sees
- * the real parameter names regardless of minification.
+ * CSP NOTE: this used to build the wrapper with `new Function(...)`, but that is
+ * blocked on pages whose Content Security Policy lacks `'unsafe-eval'` (the exact
+ * pages the bookmarklet targets). Instead we use a normal closure and OVERRIDE its
+ * `.toString()` so hypha-rpc still reads the real, unminified parameter names from
+ * the schema — no eval / Function constructor involved.
  *
  * Additionally, it handles the case where hypha-rpc passes kwargs as a single
  * object argument (e.g. `fn({url: "..."})` instead of `fn("...")`). The
@@ -24,38 +26,54 @@ export function wrapFn(fn: any): any {
     return fn;
   }
 
-  // Create a wrapper that:
-  // 1. Has correct, unminified parameter names (for hypha-rpc getParamNames)
-  // 2. Detects when kwargs are passed as a single object and destructures them
-  //
-  // hypha-rpc HTTP handler passes kwargs as a single plain object, e.g.:
-  //   execute_script({code: "..."}) instead of execute_script("...")
-  //   get_react_tree({}) instead of get_react_tree()
-  // We detect this and destructure, or discard empty objects.
-  const paramList = paramNames.join(", ");
-  const firstParam = paramNames[0];
-  const wrapper = new Function(
-    "fn",
-    "paramNames",
-    `return async function(${paramList}) {
-      // Detect kwargs-as-object: single argument that is a plain object
-      if (arguments.length === 1 && ${firstParam} != null && typeof ${firstParam} === "object" && !Array.isArray(${firstParam}) && !(${firstParam} instanceof Date) && ${firstParam}.constructor === Object) {
-        var _kw = ${firstParam};
-        var _keys = Object.keys(_kw);
-        // Empty object {} → call with no args (all defaults)
-        if (_keys.length === 0) {
-          return fn();
-        }
-        // Keys match schema params → destructure
-        if (paramNames.indexOf(_keys[0]) !== -1) {
-          var _args = paramNames.map(function(n) { return _kw[n]; });
-          return fn.apply(null, _args);
-        }
+  // A plain closure (no new Function). It:
+  // 1. Detects kwargs passed as a single object and destructures them.
+  //    hypha-rpc's HTTP handler passes kwargs as one plain object, e.g.
+  //    execute_script({code: "..."}) instead of execute_script("..."),
+  //    get_react_tree({}) instead of get_react_tree().
+  // 2. Otherwise forwards positional args unchanged.
+  const wrapper = async function (...args: any[]): Promise<any> {
+    if (
+      args.length === 1 &&
+      args[0] != null &&
+      typeof args[0] === "object" &&
+      !Array.isArray(args[0]) &&
+      !(args[0] instanceof Date) &&
+      args[0].constructor === Object
+    ) {
+      const kw = args[0];
+      const keys = Object.keys(kw);
+      // Empty object {} → call with no args (all defaults)
+      if (keys.length === 0) {
+        return fn();
       }
-      return fn(${paramList});
-    }`
-  )(fn, paramNames);
+      // Keys match schema params → destructure into positional args
+      if (paramNames.indexOf(keys[0]) !== -1) {
+        return fn.apply(null, paramNames.map((n) => kw[n]));
+      }
+    }
+    return fn.apply(null, args);
+  };
 
-  if (schema) wrapper.__schema__ = schema;
+  // hypha-rpc's getFunctionInfo() does `func.toString()` and extracts the param
+  // names from the first `(...)`. A real `...args` wrapper would hide them, so
+  // expose the schema's names via a toString override (CSP-safe, unlike Function).
+  const fakeSource = `function (${paramNames.join(", ")}) {}`;
+  try {
+    Object.defineProperty(wrapper, "toString", {
+      value: () => fakeSource,
+      writable: true,
+      configurable: true,
+    });
+    // Some consumers read arity via Function.length — keep it consistent.
+    Object.defineProperty(wrapper, "length", {
+      value: paramNames.length,
+      configurable: true,
+    });
+  } catch {
+    (wrapper as any).toString = () => fakeSource;
+  }
+
+  if (schema) (wrapper as any).__schema__ = schema;
   return wrapper;
 }

@@ -4,29 +4,15 @@
 import * as hyphaRpc from "hypha-rpc";
 import { DebugOverlay } from "./ui/overlay.js";
 import { AICursor } from "./ui/cursor.js";
-import { getPageInfo, installConsoleCapture } from "./services/info.js";
-import {
-  queryDom,
-  clickElement,
-  fillInput,
-  scrollTo,
-  getHtml,
-} from "./services/dom.js";
-import { takeScreenshot } from "./services/screenshot.js";
-import { executeScript } from "./services/execute.js";
-import { navigate, installNavigationInterceptor } from "./services/navigate.js";
-import { getReactTree } from "./services/react.js";
-import { generateSkillMd } from "./services/skill.js";
+import { installConsoleCapture } from "./services/info.js";
+import { installNavigationInterceptor } from "./services/navigate.js";
 import { wrapFn as baseWrapFn } from "./utils/wrap-fn.js";
+import { disposeController } from "./services/page-controller.js";
 import {
-  getBrowserState,
-  clickElementByIndex,
-  inputText,
-  selectOption,
-  scroll,
-  removeHighlights,
-  disposeController,
-} from "./services/page-controller.js";
+  createServiceMap,
+  SERVICE_META,
+} from "./relay/service-map.js";
+import { buildServiceUrl, randomHex } from "./relay/service-url.js";
 
 export interface DebuggerConfig {
   /** Hypha server URL. Required. */
@@ -69,13 +55,6 @@ export interface DebugSession {
   token: string;
   /** Disconnect and clean up. */
   destroy: () => Promise<void>;
-}
-
-/** Generate a cryptographically random hex string of `bytes` bytes. */
-function randomHex(bytes = 8): string {
-  const arr = new Uint8Array(bytes);
-  crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** sessionStorage key for persisting debugger config across reloads. */
@@ -353,17 +332,7 @@ export class HyphaDebugger {
    * Callers append ?_mode=last to resolve the most recent instance.
    */
   private buildServiceUrl(serviceId: string): string {
-    const base = this.config.server_url.replace(/\/+$/, "");
-    const slashIdx = serviceId.indexOf("/");
-    if (slashIdx !== -1) {
-      const workspace = serviceId.substring(0, slashIdx);
-      const svcPart = serviceId.substring(slashIdx + 1);
-      // Strip clientId: "abc123:web-debugger" → "web-debugger"
-      const colonIdx = svcPart.indexOf(":");
-      const svcName = colonIdx !== -1 ? svcPart.substring(colonIdx + 1) : svcPart;
-      return `${base}/${workspace}/services/${svcName}`;
-    }
-    return `${base}/services/${serviceId}`;
+    return buildServiceUrl(this.config.server_url, serviceId);
   }
 
   private getHyphaModule(): any {
@@ -386,70 +355,27 @@ export class HyphaDebugger {
   }
 
   private buildServiceDefinition(): any {
-    return {
+    const def: any = {
       id: this.config.service_id,
       name: this.config.service_name,
-      type: "debugger",
-      description:
-        "Remote web page debugger. Allows inspecting DOM, taking screenshots, executing JavaScript, and interacting with the page.",
+      type: SERVICE_META.type,
+      description: SERVICE_META.description,
       config: {
         visibility: this.config.visibility,
       },
-      get_page_info: this.wrapFn(getPageInfo, "get_page_info"),
-      get_html: this.wrapFn(getHtml, "get_html"),
-      query_dom: this.wrapFn(queryDom, "query_dom"),
-      click_element: this.wrapFn(clickElement, "click_element"),
-      fill_input: this.wrapFn(fillInput, "fill_input"),
-      scroll_to: this.wrapFn(scrollTo, "scroll_to"),
-      take_screenshot: this.wrapFn(takeScreenshot, "take_screenshot"),
-      execute_script: this.wrapFn(executeScript, "execute_script"),
-      navigate: this.wrapFn(navigate, "navigate"),
-      get_react_tree: this.wrapFn(getReactTree, "get_react_tree"),
-      // Smart DOM analysis + index-based interaction (from page-controller)
-      get_browser_state: this.wrapFn(getBrowserState, "get_browser_state"),
-      click_element_by_index: this.wrapFn(clickElementByIndex, "click_element_by_index"),
-      input_text: this.wrapFn(inputText, "input_text"),
-      select_option: this.wrapFn(selectOption, "select_option"),
-      scroll: this.wrapFn(scroll, "scroll"),
-      remove_highlights: this.wrapFn(removeHighlights, "remove_highlights"),
-      get_skill_md: this.wrapFn(this.createGetSkillMd(), "get_skill_md"),
     };
-  }
-
-  private createGetSkillMd(): any {
-    const fn = () => {
-      // Build a schema-only map (avoid calling buildServiceDefinition which would recurse)
-      const schemaFns: Record<string, any> = {};
-      const fns: Record<string, any> = {
-        get_page_info: getPageInfo, get_html: getHtml,
-        query_dom: queryDom, click_element: clickElement, fill_input: fillInput,
-        scroll_to: scrollTo, take_screenshot: takeScreenshot,
-        execute_script: executeScript, navigate: navigate,
-        get_react_tree: getReactTree,
-        // Smart DOM analysis + index-based interaction
-        get_browser_state: getBrowserState,
-        click_element_by_index: clickElementByIndex,
-        input_text: inputText, select_option: selectOption,
-        scroll: scroll, remove_highlights: removeHighlights,
-      };
-      for (const [name, f] of Object.entries(fns)) {
-        if ((f as any).__schema__) schemaFns[name] = f;
-      }
-      const serviceUrl = this.serviceInfo
-        ? this.buildServiceUrl(this.serviceInfo.id ?? this.config.service_id)
-        : "{SERVICE_URL}";
-      return generateSkillMd(schemaFns, serviceUrl);
-    };
-    fn.__schema__ = {
-      name: "getSkillMd",
-      description:
-        "Get the SKILL.md document describing all available debugger functions, their parameters, and usage examples. Follows the agentskills.io specification.",
-      parameters: {
-        type: "object",
-        properties: {},
-      },
-    };
-    return fn;
+    // Single source of truth for the function set + schemas (shared with the
+    // relay agent). get_skill_md resolves the live service URL lazily.
+    const entries = createServiceMap({
+      getServiceUrl: () =>
+        this.serviceInfo
+          ? this.buildServiceUrl(this.serviceInfo.id ?? this.config.service_id)
+          : "{SERVICE_URL}",
+    });
+    for (const { name, fn } of entries) {
+      def[name] = this.wrapFn(fn, name);
+    }
+    return def;
   }
 
   /** Build the instruction block for the overlay panel. */

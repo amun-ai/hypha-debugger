@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Hypha Debugger",
+  "version": "0.4.0",
+  "description": "Attach a remote Hypha debugger to any web page — inspect DOM, screenshot, click/type by index, React tree — controllable by AI agents over Hypha RPC. Works on strict-CSP sites.",
+  "minimum_chrome_version": "116",
+  "permissions": ["scripting", "offscreen", "sidePanel", "storage", "tabs", "activeTab"],
+  "optional_permissions": ["declarativeNetRequest"],
+  "optional_host_permissions": ["<all_urls>"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Hypha Debugger (open side panel)" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "web_accessible_resources": [
+    { "resources": ["main-world.js"], "matches": ["<all_urls>"] }
+  ]
+}

@@ -20,6 +20,7 @@
     "build": "rollup -c && tsc --declaration --emitDeclarationOnly --outDir dist",
     "postbuild": "node scripts/build-bookmarklet.mjs",
     "build:bookmarklet": "node scripts/build-bookmarklet.mjs",
+    "build:extension": "node scripts/build-extension.mjs",
     "dev": "rollup -c -w",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -172,11 +172,33 @@ async function disconnectBrowser(): Promise<void> {
   await detachAll(); // release any chrome.debugger attachments (clears the banner)
 }
 
-/** Recreate the offscreen + reconnect if we should be connected (keepalive). */
+/** Recreate the offscreen + (re)connect if we should be connected (keepalive). */
 async function reconcile(): Promise<void> {
   const r = await chrome.storage.local.get(["hyphaConnected", "hyphaConfig"]);
   if (r.hyphaConnected && r.hyphaConfig) {
-    await ensureOffscreen(); // offscreen auto-reconnects from storage on load
+    await ensureOffscreen();
+    // The offscreen no longer reads storage itself — drive it from here.
+    // No-op if it's already connected (offscreen guards on connecting||server).
+    chrome.runtime.sendMessage({ __off: "connect", config: r.hyphaConfig }).catch(() => {});
+  }
+}
+
+/** Persist the live connection state from the offscreen's __ui messages, since
+ *  the offscreen can't use chrome.storage itself. */
+async function persistUi(msg: any): Promise<void> {
+  if (msg.type === "ready") {
+    await chrome.storage.local.set({
+      hyphaStatus: "connected",
+      hyphaServiceUrl: msg.service_url || "",
+      hyphaToken: msg.token || "",
+      hyphaWorkspace: msg.workspace || "",
+    });
+  } else if (msg.type === "status") {
+    if (msg.status === "disconnected" || msg.status === "error") {
+      await chrome.storage.local.set({ hyphaStatus: msg.status, hyphaServiceUrl: "" });
+    } else if (msg.status === "connecting" || msg.status === "connected") {
+      await chrome.storage.local.set({ hyphaStatus: msg.status });
+    }
   }
 }
 
@@ -200,6 +222,20 @@ chrome.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: any)
       .then((value) => sendResponse({ value }))
       .catch((e) => sendResponse({ __error: e?.message ?? String(e) }));
     return true; // async response
+  }
+  // Persist connection state from the offscreen (it can't use chrome.storage).
+  if (msg.__ui) {
+    void persistUi(msg);
+    return;
+  }
+  // Offscreen (re)loaded — tell it to connect with the stored config.
+  if (msg.__off === "offscreenReady") {
+    void (async () => {
+      const r = await chrome.storage.local.get(["hyphaConnected", "hyphaConfig"]);
+      if (r.hyphaConnected && r.hyphaConfig)
+        chrome.runtime.sendMessage({ __off: "connect", config: r.hyphaConfig }).catch(() => {});
+    })();
+    return;
   }
   if (msg.__ctl === "connect") {
     void connectBrowser(msg.config);

@@ -51,19 +51,12 @@ function withTimeout<T>(p: Promise<T>, ms: number, what: string): Promise<T> {
 }
 
 async function connect(config: any): Promise<void> {
-  if (connecting) return; // a connect is already in flight
+  if (connecting || server) return; // already connecting or connected
   connecting = true;
-  // Tear down any stale/dead connection first so we never wedge on it.
-  if (server) {
-    try {
-      server.disconnect?.();
-    } catch {
-      /* ignore */
-    }
-    server = null;
-  }
   try {
-    await chrome.storage.local.set({ hyphaStatus: "connecting" });
+    // NOTE: do NOT use chrome.storage here — it is restricted in offscreen
+    // documents and throwing/hanging would abort the connect. The service
+    // worker owns persistence (it watches our __ui messages).
     ui({ type: "status", status: "connecting" });
     ui({ type: "log", msg: `connecting to ${config.server_url} …`, kind: "status" });
     console.log("[hypha-offscreen] connecting to", config.server_url);
@@ -127,22 +120,12 @@ async function connect(config: any): Promise<void> {
     const token = config.require_token
       ? await server.generateToken({ expires_in: 86400 })
       : "";
-    // Persist so the side panel can show the URL even if it (re)opens after the
-    // live "ready" message, or the SW cycled.
-    await chrome.storage.local.set({
-      hyphaStatus: "connected",
-      hyphaServiceUrl: serviceUrl,
-      hyphaToken: token,
-      hyphaWorkspace: workspace,
-    });
+    // The SW persists status/service_url from these __ui messages.
     ui({ type: "ready", service_url: serviceUrl, token, workspace });
     ui({ type: "status", status: "connected", detail: serviceUrl });
   } catch (e: any) {
     server = null;
-    // Also log to the offscreen's own console so it can be inspected via
-    // chrome://extensions → "Inspect views: offscreen.html".
     console.error("[hypha-offscreen] connect failed:", e);
-    await chrome.storage.local.set({ hyphaStatus: "error", hyphaServiceUrl: "" });
     ui({ type: "status", status: "error", detail: e?.message ?? String(e) });
   } finally {
     connecting = false;
@@ -159,7 +142,6 @@ async function disconnect(): Promise<void> {
   } catch {
     /* ignore */
   }
-  await chrome.storage.local.set({ hyphaStatus: "disconnected", hyphaServiceUrl: "" });
   ui({ type: "status", status: "disconnected" });
 }
 
@@ -170,10 +152,10 @@ chrome.runtime.onMessage.addListener((msg: any) => {
   // keepalive ping from SW — receiving it is enough to keep us warm.
 });
 
-// Reconnect from storage on (re)load.
-chrome.storage.local.get(["hyphaConnected", "hyphaConfig"]).then((r: any) => {
-  if (r.hyphaConnected && r.hyphaConfig) void connect(r.hyphaConfig);
-});
+// The service worker drives connection: it sends {__off:"connect"} after
+// creating us (and on reconcile). We tell it we're ready in case it created us
+// and the message raced ahead of this listener.
+chrome.runtime.sendMessage({ __off: "offscreenReady" }).catch(() => {});
 
 // Keepalive: periodic message keeps the SW warm and signals we're alive.
 setInterval(() => {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Hypha Debugger — Browser Automation",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Remote browser automation over Hypha RPC: AI agents can open/close/switch tabs, navigate, and inspect & control pages (DOM, screenshots, click/type by index, React). Optional: run JavaScript on any page (incl. strict-CSP) by enabling the debugger permission.",
   "minimum_chrome_version": "116",
   "permissions": ["scripting", "offscreen", "sidePanel", "storage", "tabs", "activeTab", "alarms"],

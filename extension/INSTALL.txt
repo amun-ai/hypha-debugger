@@ -55,6 +55,21 @@ Page (act on the current target tab — set it with activate_tab / open_tab):
           get_browser_state, click_element_by_index, input_text, select_option,
           scroll, take_screenshot, query_dom, get_html, get_react_tree,
           execute_script, get_page_info, ...
+Skills (per-site memory — the agent gets smarter/cheaper over time):
+          list_skills, get_skill, set_skill, remove_skill, list_skill_sites
+
+
+SKILLS — the agent learns each site over time
+---------------------------------------------
+Each skill is a MARKDOWN note about one type of operation on a site (searching,
+exporting, creating, logging in, …) — the agent's accumulated experience: the
+working JS/API recipe, key selectors, steps, and gotchas. They're stored locally
+per site. On the next visit the agent calls list_skills() and reuses them instead
+of re-exploring — fewer steps, fewer tokens. get_skill_md tells the agent this
+workflow (explore once → script & batch → save the markdown skill).
+
+Back up or share what your agents learned with the "Export" / "Import" buttons in
+the side panel (a JSON file of all sites' skills). Import merges into what you have.
 
 
 NOTES

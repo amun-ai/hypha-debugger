@@ -27,7 +27,8 @@ interface FunctionSchema {
 export function generateSkillMd(
   serviceFunctions: Record<string, { __schema__?: FunctionSchema }>,
   serviceUrl: string,
-  pageContext?: { title?: string; url?: string }
+  pageContext?: { title?: string; url?: string },
+  guidance?: string
 ): string {
   const frontmatter = [
     "---",
@@ -54,6 +55,7 @@ export function generateSkillMd(
     attached,
     "",
     "Every function below is an HTTP endpoint under the service URL. Pick the approach that fits your task — they combine freely.",
+    ...(guidance ? ["", guidance] : []),
     "",
     "## Approaches",
     "",

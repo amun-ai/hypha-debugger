@@ -111,6 +111,29 @@ async function resolveTarget(ctx: BrowserToolCtx): Promise<number> {
   return active.id;
 }
 
+// ---- per-site skill memory ----------------------------------------------
+// Reusable recipes an agent accumulates per site (origin), persisted in
+// chrome.storage.local. The SW has storage access (the offscreen does not).
+const SKILLS_KEY = "hyphaSkills";
+type SkillStore = Record<string, Record<string, string>>; // origin -> key -> value
+
+async function loadAllSkills(): Promise<SkillStore> {
+  const r = await chrome.storage.local.get(SKILLS_KEY);
+  return r[SKILLS_KEY] || {};
+}
+async function saveAllSkills(all: SkillStore): Promise<void> {
+  await chrome.storage.local.set({ [SKILLS_KEY]: all });
+}
+async function siteFor(ctx: BrowserToolCtx, explicit?: string): Promise<string> {
+  if (explicit) return explicit;
+  const t = await chrome.tabs.get(await resolveTarget(ctx));
+  try {
+    return new URL(t.url).origin;
+  } catch {
+    return t.url || "unknown";
+  }
+}
+
 export const BROWSER_TOOLS: Record<string, Tool> = {
   list_tabs: {
     schema: {
@@ -268,6 +291,107 @@ export const BROWSER_TOOLS: Record<string, Tool> = {
       },
     },
     run: async (ctx, [code]) => cdpEval(await resolveTarget(ctx), String(code ?? "")),
+  },
+
+  // ---- skill memory (accumulate per-site know-how across sessions) --------
+  list_skills: {
+    schema: {
+      name: "list_skills",
+      description:
+        "List ALL saved skills for a site — each is a markdown note about one type of operation (search, export, create, …) learned in past sessions. Call this FIRST when you start working on a site, to reuse them instead of re-exploring. Returns every key→markdown entry. Defaults to the current target tab's origin.",
+      parameters: {
+        type: "object",
+        properties: {
+          site: { type: "string", description: "Site origin, e.g. https://example.com. Defaults to the current tab." },
+        },
+      },
+    },
+    run: async (ctx, [site]) => {
+      const s = await siteFor(ctx, site);
+      const skills = (await loadAllSkills())[s] || {};
+      return { site: s, count: Object.keys(skills).length, skills };
+    },
+  },
+
+  get_skill: {
+    schema: {
+      name: "get_skill",
+      description:
+        "Read one saved skill (the markdown note for that operation type) by key for a site. Read before updating so you extend rather than overwrite it.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "Skill key" },
+          site: { type: "string", description: "Site origin. Defaults to the current tab." },
+        },
+        required: ["key"],
+      },
+    },
+    run: async (ctx, [key, site]) => {
+      const s = await siteFor(ctx, site);
+      const v = (await loadAllSkills())[s]?.[String(key)];
+      return { site: s, key, value: v ?? null };
+    },
+  },
+
+  set_skill: {
+    schema: {
+      name: "set_skill",
+      description:
+        "Save or update a skill for a site. A skill is a MARKDOWN note capturing your experience doing ONE type of operation on this site (e.g. searching, exporting a report, creating an item, logging in). Write it as concise, reusable markdown: what works, the execute_script JS snippet or discovered API endpoint+params to use, key selectors/element indices, the steps, and gotchas. Use a clear key naming the operation type (e.g. 'search', 'export-report', 'create-ticket'). Save/refine it at the end of a task so future sessions reuse it instead of re-exploring. To update, read the entry, edit the markdown, and set it again.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "Operation type this skill covers, e.g. 'search', 'export-report'" },
+          value: { type: "string", description: "Markdown note: how to do this operation (recipe, JS/API, selectors, steps, gotchas)" },
+          site: { type: "string", description: "Site origin. Defaults to the current tab." },
+        },
+        required: ["key", "value"],
+      },
+    },
+    run: async (ctx, [key, value, site]) => {
+      const s = await siteFor(ctx, site);
+      const all = await loadAllSkills();
+      all[s] = all[s] || {};
+      all[s][String(key)] = String(value);
+      await saveAllSkills(all);
+      return { success: true, site: s, key, count: Object.keys(all[s]).length };
+    },
+  },
+
+  remove_skill: {
+    schema: {
+      name: "remove_skill",
+      description: "Delete an outdated skill entry by key for a site.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "Skill key to delete" },
+          site: { type: "string", description: "Site origin. Defaults to the current tab." },
+        },
+        required: ["key"],
+      },
+    },
+    run: async (ctx, [key, site]) => {
+      const s = await siteFor(ctx, site);
+      const all = await loadAllSkills();
+      const had = !!(all[s] && String(key) in all[s]);
+      if (all[s]) delete all[s][String(key)];
+      await saveAllSkills(all);
+      return { success: true, site: s, key, removed: had };
+    },
+  },
+
+  list_skill_sites: {
+    schema: {
+      name: "list_skill_sites",
+      description: "List every site you have saved skills for, with entry counts.",
+      parameters: { type: "object", properties: {} },
+    },
+    run: async () => {
+      const all = await loadAllSkills();
+      return Object.entries(all).map(([site, e]) => ({ site, count: Object.keys(e).length }));
+    },
   },
 };
 

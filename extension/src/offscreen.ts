@@ -16,6 +16,43 @@ import { wrapFn as baseWrapFn } from "../../javascript/src/utils/wrap-fn.js";
 let server: any = null;
 let connecting = false;
 
+// Guidance injected into get_skill_md — teaches the efficient explore→script→
+// accumulate-skills loop so the agent gets smarter and cheaper on each site.
+const SKILL_GUIDANCE = [
+  "## How to work efficiently (read this first)",
+  "",
+  "You are driving a whole browser. Optimize for FEW steps and FEW tokens:",
+  "",
+  "1. **Check what you already know.** At the start of a task on a site, call",
+  "   `list_skills()` — it returns reusable recipes saved for this site from past",
+  "   sessions. Reuse them instead of re-exploring.",
+  "2. **Explore only when needed.** If there's no skill yet, use the exploration",
+  "   tools (`get_browser_state`, `query_dom`, `get_html`, `take_screenshot`,",
+  "   `get_react_tree`) to learn the page's structure and interactive elements.",
+  "3. **Then script, don't click.** Prefer `execute_script` for real work: read/",
+  "   modify state, and call the site's OWN APIs with `fetch`. Discover API",
+  "   endpoints (watch network calls, inspect `window`/global state, try `fetch`)",
+  "   and script against them — far cheaper than UI click/type round-trips.",
+  "4. **Batch over loop.** Do many items in ONE `execute_script` call (map over a",
+  "   list, one `fetch` that returns everything) instead of many small calls.",
+  "5. **Accumulate skills as markdown experience.** A skill is a MARKDOWN note",
+  "   about ONE type of operation on the site (searching, exporting, creating, …).",
+  "   When you work out how to do an operation, save it with `set_skill(key, value)`:",
+  "   - `key`: the operation type — short and stable, e.g. `search`, `export-report`,",
+  "     `create-ticket`, `login`.",
+  "   - `value`: a concise markdown note — what works, the execute_script JS snippet",
+  "     or discovered API endpoint+params, key selectors/indices, the steps, and",
+  "     gotchas. Write it so a future session can follow it without re-exploring.",
+  "   Use `get_skill(key)` to recall one (read before editing, then set_skill again to",
+  "   update), and `remove_skill(key)` to prune stale ones. Skills persist per site.",
+  "",
+  "**Loop:** list_skills → (explore once if new) → script & batch via execute_script",
+  "→ set_skill the markdown note for what you learned. Each site gets faster over time.",
+  "",
+  "Tabs: use `list_tabs`/`open_tab`/`activate_tab`/`navigate` to control which page",
+  "you're working on. Page tools act on the current target tab.",
+].join("\n");
+
 function getConnect(): (cfg: any) => Promise<any> {
   const override = (globalThis as any).__HYPHA_CONNECT__;
   if (typeof override === "function") return override;
@@ -100,7 +137,7 @@ async function connect(config: any): Promise<void> {
     const skillFn: any = () => {
       const fns: Record<string, any> = {};
       for (const { name, schema } of catalog) fns[name] = { __schema__: schema };
-      return generateSkillMd(fns, serviceUrl);
+      return generateSkillMd(fns, serviceUrl, undefined, SKILL_GUIDANCE);
     };
     skillFn.__schema__ = {
       name: "get_skill_md",

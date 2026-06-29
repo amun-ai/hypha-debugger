@@ -112,6 +112,59 @@ $("clear").addEventListener("click", () => {
 $("pinTab").addEventListener("click", () => {
   chrome.runtime.sendMessage({ __ctl: "pinActiveTab" });
 });
+
+// ---- skills: show count + export/import as JSON --------------------------
+const SKILLS_KEY = "hyphaSkills";
+async function refreshSkillsInfo(): Promise<void> {
+  const all = (await chrome.storage.local.get(SKILLS_KEY))[SKILLS_KEY] || {};
+  const sites = Object.keys(all).length;
+  const entries = Object.values(all).reduce(
+    (n: number, e: any) => n + Object.keys(e || {}).length,
+    0,
+  );
+  $("skillsInfo").textContent = `Skills: ${entries} across ${sites} site${sites === 1 ? "" : "s"}`;
+}
+$("exportSkills").addEventListener("click", async () => {
+  const all = (await chrome.storage.local.get(SKILLS_KEY))[SKILLS_KEY] || {};
+  const blob = new Blob([JSON.stringify(all, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "hypha-skills.json";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  appendLog("exported skills", "status");
+});
+$("importSkills").addEventListener("click", () => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json,.json";
+  input.onchange = async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const imported = JSON.parse(await file.text());
+      if (typeof imported !== "object" || Array.isArray(imported) || imported === null)
+        throw new Error("not a skills object");
+      const cur = (await chrome.storage.local.get(SKILLS_KEY))[SKILLS_KEY] || {};
+      let merged = 0;
+      for (const [site, entries] of Object.entries(imported as Record<string, any>)) {
+        if (!entries || typeof entries !== "object") continue;
+        cur[site] = { ...(cur[site] || {}), ...entries };
+        merged += Object.keys(entries).length;
+      }
+      await chrome.storage.local.set({ [SKILLS_KEY]: cur });
+      await refreshSkillsInfo();
+      appendLog(`imported ${merged} skill entr${merged === 1 ? "y" : "ies"}`, "result");
+    } catch (e: any) {
+      appendLog("import failed: " + (e?.message ?? e), "error");
+    }
+  };
+  input.click();
+});
+chrome.storage.onChanged?.addListener?.((changes: any, area: string) => {
+  if (area === "local" && changes[SKILLS_KEY]) void refreshSkillsInfo();
+});
 // Save the server URL as the user edits it (persists across sessions, even
 // without connecting).
 let saveTimer: any;
@@ -134,6 +187,7 @@ serverInput.addEventListener("input", () => {
   if (r.hyphaStatus) status = r.hyphaStatus;
   if (r.hyphaServiceUrl) serviceUrl = r.hyphaServiceUrl;
   render();
+  void refreshSkillsInfo();
   // Ask the SW to replay the current target tab.
   chrome.runtime.sendMessage({ __ctl: "getStatus" }).catch(() => {});
 })();

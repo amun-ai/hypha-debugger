@@ -416,37 +416,33 @@ Target (Browser / Python)         Hypha Server          Remote Client (AI Agent)
 
 <!-- ═══════════════════ CHROME EXTENSION ═══════════════════ -->
 <section id="extension">
-  <h2>Chrome Extension — full browser automation</h2>
+  <h2>Chrome Extension → now <strong>Hypha Navigator</strong></h2>
   <p style="color:var(--text-muted);max-width:680px">
-    The <strong>MV3 extension</strong> turns the whole browser into a tool your AI agent can drive:
-    <strong>open / close / switch / navigate tabs</strong> and inspect &amp; control the current page
-    (DOM, screenshots, click/type by index, React), plus <strong>run JavaScript on any page — even
-    strict-CSP ones</strong> (it uses the Chrome debugger to bypass <code>unsafe-eval</code>, like
-    Puppeteer/Playwright). The connection runs in a privileged background context the page can't
-    restrict — so it works on <strong>any site</strong>, survives navigation, and shows a live log
-    in a side panel.
+    The browser-automation extension that grew out of this project is now its own tool:
+    <strong>Hypha Navigator</strong>. It turns the whole browser into something your AI agent can
+    drive — <strong>open / close / switch / navigate tabs</strong>, inspect &amp; control the current
+    page (DOM, screenshots, click/type by index, React), <strong>run JavaScript on any page — even
+    strict-CSP ones</strong> (via the Chrome debugger, like Puppeteer/Playwright), and it
+    <strong>accumulates per-site agent skills</strong> (<a href="https://agentskills.io">agentskills.io</a>)
+    so it gets faster and cheaper on each site over time. The connection runs in a privileged
+    background context the page can't restrict, so it works on <strong>any site</strong>.
   </p>
 
   <p style="margin:18px 0">
-    <a class="bm-link" id="ext-download" href="hypha-debugger-extension.zip?v=0.8.4" download
+    <a class="bm-link" href="https://amun-ai.github.io/hypha-navigator/"
        style="display:inline-flex;font-size:1rem;padding:12px 22px">
-      ⬇ Download extension (.zip)&nbsp;<span id="ext-version" style="opacity:.85;font-weight:500;">v0.8.4</span>
+      → Get Hypha Navigator
     </a>
+    &nbsp;&nbsp;
+    <a href="https://github.com/amun-ai/hypha-navigator" style="font-size:.9rem">github.com/amun-ai/hypha-navigator</a>
   </p>
 
-  <ol class="steps">
-    <li><strong>Download &amp; unzip</strong> the file above.</li>
-    <li><strong>Open</strong> <code>chrome://extensions</code> and turn on <em>Developer mode</em> (top-right).</li>
-    <li><strong>Load unpacked</strong> → select the unzipped folder.</li>
-    <li><strong>Click the toolbar icon</strong> to open the side panel, then
-      <strong>Connect browser</strong>. The panel shows the <strong>service URL</strong> + live logs.</li>
-    <li><strong>Paste the service URL</strong> into your AI agent — it drives the browser over HTTP
-      (<code>list_tabs</code>, <code>open_tab</code>, <code>get_browser_state</code>, …;
-      <code>GET &lt;url&gt;/get_skill_md</code> for the full API).</li>
-  </ol>
   <p style="color:var(--text-dim);font-size:.85rem;margin-top:10px">
-    Requires Chrome/Edge 116+. Prefer to build from source? See
-    <a href="https://github.com/amun-ai/hypha-debugger/tree/main/extension">extension/</a> in the repo.
+    Lineage: the original <em>advanced debugger</em> extension lived here in
+    <a href="https://github.com/amun-ai/hypha-debugger/tree/main/extension">hypha-debugger/extension</a>;
+    full browser automation now lives in the dedicated <strong>Hypha Navigator</strong> repo. This
+    project (<code>hypha-debugger</code>) remains the lightweight injectable debugger for web pages
+    and Python — no extension required.
   </p>
 </section>
 

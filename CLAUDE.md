@@ -394,6 +394,12 @@ python -m hypha.server --host=0.0.0.0 --port=9527
 
 ## Related Projects
 
+- **Hypha Navigator**: `../hypha-navigator` (repo: `amun-ai/hypha-navigator`) — the MV3 Chrome
+  **browser-automation** extension that grew out of this project's "advanced debugger" extension.
+  Full browser control (tabs, page DOM, CDP `execute_script` on strict-CSP sites) + per-site Agent
+  Skills (agentskills.io). The `extension/` dir here is the lineage origin; active development of the
+  extension happens in the Navigator repo. This project remains the lightweight injectable debugger
+  (web page + Python, no extension required).
 - **Hypha Server**: `../hypha` - The RPC server infrastructure
 - **Hypha RPC**: `../hypha-rpc` - The RPC client library (Python + JS)
 - Hypha docs: https://ha.amun.ai/

@@ -12,10 +12,13 @@ the CDN and auto-starts.
 
 Click the bookmarklet → a floating bug icon appears → click it to copy the service URL → paste into your AI agent.
 
-> **Strict-CSP sites:** a page with a strict Content Security Policy can block the bookmarklet (its
-> `script-src`/`connect-src` stop in-page scripts from loading and connecting out). For those sites —
-> or to debug any site reliably — use the **[Chrome extension](https://amun-ai.github.io/hypha-debugger/#extension)** — full browser
-> automation (open/close/navigate tabs + control pages) in a privileged context the page can't restrict.
+> **Strict-CSP sites / full browser automation:** a page with a strict Content Security Policy can
+> block the bookmarklet (its `script-src`/`connect-src` stop in-page scripts from loading and
+> connecting out). For those sites — or to drive the whole browser — use
+> **[Hypha Navigator](https://github.com/amun-ai/hypha-navigator)**, the dedicated MV3 extension that
+> grew out of this project's "advanced debugger": open/close/navigate tabs, control pages, run JS on
+> any site (even strict-CSP), and accumulate per-site agent skills — all in a privileged context the
+> page can't restrict.
 
 ## Python — One command
 

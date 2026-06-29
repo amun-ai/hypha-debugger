@@ -13,31 +13,57 @@ import {
   BROWSER_TOOL_NAMES,
   detachAll,
   forgetTab,
-  skillsForOrigin,
+  skillIndexForOrigin,
+  hydrateSkillsFromSync,
+  mirrorSkillsToSync,
   type BrowserToolCtx,
 } from "./browser-tools.js";
 
-// Tools where we auto-attach the current site's saved skills, so the agent
-// operates with that site's accumulated know-how by default (no extra call).
-const AUGMENT_WITH_SKILLS = new Set([
-  "get_browser_state",
-  "get_active_tab",
-  "open_tab",
-  "activate_tab",
-  "navigate",
+// The skill-management tools themselves — their results already concern skills,
+// so we don't re-augment them (avoids confusing nested skill hints).
+const SKILL_MGMT = new Set([
+  "list_site_skills",
+  "get_site_skill",
+  "set_site_skill",
+  "remove_site_skill",
 ]);
 
+/**
+ * Augment EVERY operation result (not just skill calls) with the site's origin,
+ * a lightweight name+description index of that origin's saved skills, and a hint:
+ * reuse them if any exist, otherwise work efficiently and record one. This nudges
+ * the agent to obtain/record site skills before operating on a new origin.
+ */
 async function attachSiteSkills(value: any): Promise<void> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
   if (targetTabId == null) return;
   try {
-    const t = await chrome.tabs.get(targetTabId);
-    const origin = new URL(t.url).origin;
-    const skills = await skillsForOrigin(origin);
-    if (Object.keys(skills).length) {
-      value.site_skills = skills;
+    // Prefer an origin already in the result (e.g. the just-navigated URL) so we
+    // surface the destination site's skills, not the pre-navigation page.
+    let origin = "";
+    const cand = value.origin || value.url || value.tab?.url;
+    try {
+      if (cand) origin = new URL(cand).origin;
+    } catch {
+      /* not a URL */
+    }
+    if (!origin) {
+      const t = await chrome.tabs.get(targetTabId);
+      origin = new URL(t.url).origin;
+    }
+    // Always expose the origin so the agent can scope site-skill calls to it.
+    value.origin = origin;
+    const index = await skillIndexForOrigin(origin); // [{name, description}]
+    value.site_skills = index;
+    if (index.length) {
       value.site_skills_hint =
-        "Saved skills for this site (markdown notes per operation). Reuse them instead of re-exploring; update with set_site_skill.";
+        `${index.length} saved skill(s) for ${origin}: ${index.map((s) => s.name).join(", ")}. ` +
+        "REUSE these before exploring — read a full entry with get_site_skill(origin, name); refine with set_site_skill(origin, name, description, content).";
+    } else {
+      value.site_skills_hint =
+        `No site skills saved for ${origin} yet. Explore once, then work efficiently ` +
+        "(prefer execute_script with the site's own APIs, and batch operations), and " +
+        "capture what you learn with set_site_skill(origin, name, description, content) so next time on this site is faster and cheaper.";
     }
   } catch {
     /* ignore */
@@ -165,7 +191,7 @@ async function handleCall(method: string, args: any[]): Promise<any> {
       value = res ? res.value : undefined;
     }
     const isErr = value && typeof value === "object" && "error" in value;
-    if (!isErr && AUGMENT_WITH_SKILLS.has(method)) await attachSiteSkills(value);
+    if (!isErr && !SKILL_MGMT.has(method)) await attachSiteSkills(value);
     ui({ type: "log", msg: isErr ? `${method}: ${value.error}` : `${method} -> ok`, kind: isErr ? "error" : "result" });
     return value;
   } catch (e: any) {
@@ -324,6 +350,14 @@ chrome.debugger?.onDetach?.addListener((source: any) => {
   if (source?.tabId != null) forgetTab(source.tabId);
 });
 
+// Site skills durability: local storage is wiped on uninstall, so mirror any
+// local change into account-synced storage, and restore from it on (re)install.
+chrome.storage?.onChanged?.addListener((changes: any, area: string) => {
+  if (area === "local" && changes.hyphaSiteSkills) {
+    void mirrorSkillsToSync(changes.hyphaSiteSkills.newValue || {});
+  }
+});
+
 chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true }).catch(() => {});
 
 // Keepalive + restart tolerance.
@@ -331,6 +365,13 @@ chrome.alarms?.create?.("hypha-keepalive", { periodInMinutes: 0.5 });
 chrome.alarms?.onAlarm?.addListener((a: any) => {
   if (a.name === "hypha-keepalive") void reconcile();
 });
-chrome.runtime.onStartup?.addListener(() => void reconcile());
-chrome.runtime.onInstalled?.addListener(() => void reconcile());
+chrome.runtime.onStartup?.addListener(() => {
+  void reconcile();
+  void hydrateSkillsFromSync();
+});
+chrome.runtime.onInstalled?.addListener(() => {
+  void reconcile();
+  void hydrateSkillsFromSync(); // restore skills after a reinstall
+});
 void reconcile();
+void hydrateSkillsFromSync();

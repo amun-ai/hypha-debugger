@@ -92,12 +92,11 @@
       <div class="row" id="targetBox" style="font-size:11px;color:var(--muted);">
         <span>Target tab:</span>
         <strong id="targetTab" title="" style="color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">—</strong>
-        <button class="secondary" id="pinTab" style="font-size:10px;padding:3px 8px;white-space:nowrap;">Pin current tab</button>
+        <button class="secondary" id="focusTab" title="Bring the target tab to the front so you can see what the agent is operating on" style="font-size:10px;padding:3px 8px;white-space:nowrap;">Focus</button>
+        <button class="secondary" id="pinTab" style="font-size:10px;padding:3px 8px;white-space:nowrap;">Pin current</button>
       </div>
       <div class="row" id="skillsBox" style="font-size:11px;color:var(--muted);" title="Per-site markdown notes the agent accumulates over time (grouped by site origin)">
         <span id="skillsInfo" style="flex:1;">Site skills: 0</span>
-        <button class="secondary" id="exportSkills" style="font-size:10px;padding:3px 8px;">Export</button>
-        <button class="secondary" id="importSkills" style="font-size:10px;padding:3px 8px;">Import</button>
       </div>
       <details>
         <summary>Advanced</summary>
@@ -108,6 +107,11 @@
         <label class="row" style="margin-top:6px;cursor:pointer;">
           <input type="checkbox" id="requireToken" /> require token (protected)
         </label>
+        <div class="row" style="margin-top:8px;" title="Per-site skills as a JSON file">
+          <span style="flex:1;color:var(--muted);">Site skills</span>
+          <button class="secondary" id="exportSkills" style="font-size:10px;padding:3px 8px;">Export</button>
+          <button class="secondary" id="importSkills" style="font-size:10px;padding:3px 8px;">Import</button>
+        </div>
       </details>
     </div>
 

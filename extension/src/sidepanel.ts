@@ -49,11 +49,22 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
 }
 
+let currentOrigin = "";
 function setTarget(tab: { id: number; title?: string; url?: string }): void {
   const el = $("targetTab");
   const label = tab.title || tab.url || `tab ${tab.id}`;
   el.textContent = label;
   el.setAttribute("title", `${tab.title || ""}\n${tab.url || ""}`);
+  let origin = "";
+  try {
+    if (tab.url) origin = new URL(tab.url).origin;
+  } catch {
+    /* non-http target */
+  }
+  if (origin !== currentOrigin) {
+    currentOrigin = origin;
+    void refreshSkillsInfo();
+  }
 }
 
 chrome.runtime.onMessage.addListener((m: any) => {
@@ -94,23 +105,37 @@ disconnectBtn.addEventListener("click", () => {
   render();
   chrome.runtime.sendMessage({ __ctl: "disconnect" });
 });
-$("copyUrl").addEventListener("click", () => {
-  if (serviceUrl) navigator.clipboard.writeText(serviceUrl);
+function flashCopied(btn: HTMLButtonElement): void {
+  const orig = btn.textContent;
+  btn.textContent = "Copied!";
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }, 1400);
+}
+$("copyUrl").addEventListener("click", async () => {
+  if (!serviceUrl) return;
+  await navigator.clipboard.writeText(serviceUrl);
+  flashCopied($("copyUrl") as HTMLButtonElement);
 });
-$("copySkill").addEventListener("click", () => {
-  if (serviceUrl)
-    navigator.clipboard.writeText(
-      buildAgentInstruction(serviceUrl, { target: "this browser" }).replace(
-        "this live web page",
-        "this browser (open/close/navigate tabs + inspect & control pages)",
-      ),
-    );
+$("copySkill").addEventListener("click", async () => {
+  if (!serviceUrl) return;
+  await navigator.clipboard.writeText(
+    buildAgentInstruction(serviceUrl, {
+      subject: "a web browser (open/close/switch tabs + inspect & control pages)",
+    }),
+  );
+  flashCopied($("copySkill") as HTMLButtonElement);
 });
 $("clear").addEventListener("click", () => {
   logsEl.innerHTML = "";
 });
 $("pinTab").addEventListener("click", () => {
   chrome.runtime.sendMessage({ __ctl: "pinActiveTab" });
+});
+$("focusTab").addEventListener("click", () => {
+  chrome.runtime.sendMessage({ __ctl: "focusTarget" });
 });
 
 // ---- skills: show count + export/import as JSON --------------------------
@@ -122,7 +147,11 @@ async function refreshSkillsInfo(): Promise<void> {
     (n: number, e: any) => n + Object.keys(e || {}).length,
     0,
   );
-  $("skillsInfo").textContent = `Site skills: ${entries} across ${sites} site${sites === 1 ? "" : "s"}`;
+  const here = currentOrigin ? Object.keys(all[currentOrigin] || {}).length : 0;
+  const total = `${entries} across ${sites} site${sites === 1 ? "" : "s"}`;
+  $("skillsInfo").textContent = currentOrigin
+    ? `Site skills: ${here} for this site · ${total}`
+    : `Site skills: ${total}`;
 }
 $("exportSkills").addEventListener("click", async () => {
   const all = (await chrome.storage.local.get(SKILLS_KEY))[SKILLS_KEY] || {};

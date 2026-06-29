@@ -195,6 +195,20 @@ async function pinActiveTab(): Promise<void> {
   const [a] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   if (a?.id != null) ctx.setTarget(a.id);
 }
+
+/** Bring the pinned target tab to the front so the user sees which one the agent
+ *  is operating on. */
+async function focusTarget(): Promise<void> {
+  await hydrateTarget();
+  if (targetTabId == null) return;
+  try {
+    const t = await chrome.tabs.get(targetTabId);
+    await chrome.tabs.update(targetTabId, { active: true });
+    await chrome.windows.update(t.windowId, { focused: true });
+  } catch {
+    /* target gone */
+  }
+}
 async function disconnectBrowser(): Promise<void> {
   await chrome.storage.local.set({ hyphaConnected: false });
   chrome.runtime.sendMessage({ __off: "disconnect" }).catch(() => {});
@@ -272,6 +286,8 @@ chrome.runtime.onMessage.addListener((msg: any, _sender: any, sendResponse: any)
     void disconnectBrowser();
   } else if (msg.__ctl === "pinActiveTab") {
     void pinActiveTab();
+  } else if (msg.__ctl === "focusTarget") {
+    void focusTarget();
   } else if (msg.__ctl === "getStatus") {
     // Side panel just opened — replay the live connection state + target so it
     // never shows "connected" with a blank URL.

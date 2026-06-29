@@ -114,7 +114,7 @@ async function resolveTarget(ctx: BrowserToolCtx): Promise<number> {
 // ---- per-site skill memory ----------------------------------------------
 // Reusable recipes an agent accumulates per site (origin), persisted in
 // chrome.storage.local. The SW has storage access (the offscreen does not).
-const SKILLS_KEY = "hyphaSkills";
+const SKILLS_KEY = "hyphaSiteSkills";
 type SkillStore = Record<string, Record<string, string>>; // origin -> key -> value
 
 async function loadAllSkills(): Promise<SkillStore> {
@@ -132,6 +132,11 @@ async function siteFor(ctx: BrowserToolCtx, explicit?: string): Promise<string> 
   } catch {
     return t.url || "unknown";
   }
+}
+
+/** The saved site skills for an origin (for auto-surfacing). */
+export async function skillsForOrigin(origin: string): Promise<Record<string, string>> {
+  return (await loadAllSkills())[origin] || {};
 }
 
 export const BROWSER_TOOLS: Record<string, Tool> = {
@@ -294,9 +299,9 @@ export const BROWSER_TOOLS: Record<string, Tool> = {
   },
 
   // ---- skill memory (accumulate per-site know-how across sessions) --------
-  list_skills: {
+  list_site_skills: {
     schema: {
-      name: "list_skills",
+      name: "list_site_skills",
       description:
         "List ALL saved skills for a site — each is a markdown note about one type of operation (search, export, create, …) learned in past sessions. Call this FIRST when you start working on a site, to reuse them instead of re-exploring. Returns every key→markdown entry. Defaults to the current target tab's origin.",
       parameters: {
@@ -313,9 +318,9 @@ export const BROWSER_TOOLS: Record<string, Tool> = {
     },
   },
 
-  get_skill: {
+  get_site_skill: {
     schema: {
-      name: "get_skill",
+      name: "get_site_skill",
       description:
         "Read one saved skill (the markdown note for that operation type) by key for a site. Read before updating so you extend rather than overwrite it.",
       parameters: {
@@ -334,9 +339,9 @@ export const BROWSER_TOOLS: Record<string, Tool> = {
     },
   },
 
-  set_skill: {
+  set_site_skill: {
     schema: {
-      name: "set_skill",
+      name: "set_site_skill",
       description:
         "Save or update a skill for a site. A skill is a MARKDOWN note capturing your experience doing ONE type of operation on this site (e.g. searching, exporting a report, creating an item, logging in). Write it as concise, reusable markdown: what works, the execute_script JS snippet or discovered API endpoint+params to use, key selectors/element indices, the steps, and gotchas. Use a clear key naming the operation type (e.g. 'search', 'export-report', 'create-ticket'). Save/refine it at the end of a task so future sessions reuse it instead of re-exploring. To update, read the entry, edit the markdown, and set it again.",
       parameters: {
@@ -359,9 +364,9 @@ export const BROWSER_TOOLS: Record<string, Tool> = {
     },
   },
 
-  remove_skill: {
+  remove_site_skill: {
     schema: {
-      name: "remove_skill",
+      name: "remove_site_skill",
       description: "Delete an outdated skill entry by key for a site.",
       parameters: {
         type: "object",

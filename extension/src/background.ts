@@ -13,8 +13,36 @@ import {
   BROWSER_TOOL_NAMES,
   detachAll,
   forgetTab,
+  skillsForOrigin,
   type BrowserToolCtx,
 } from "./browser-tools.js";
+
+// Tools where we auto-attach the current site's saved skills, so the agent
+// operates with that site's accumulated know-how by default (no extra call).
+const AUGMENT_WITH_SKILLS = new Set([
+  "get_browser_state",
+  "get_active_tab",
+  "open_tab",
+  "activate_tab",
+  "navigate",
+]);
+
+async function attachSiteSkills(value: any): Promise<void> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  if (targetTabId == null) return;
+  try {
+    const t = await chrome.tabs.get(targetTabId);
+    const origin = new URL(t.url).origin;
+    const skills = await skillsForOrigin(origin);
+    if (Object.keys(skills).length) {
+      value.site_skills = skills;
+      value.site_skills_hint =
+        "Saved skills for this site (markdown notes per operation). Reuse them instead of re-exploring; update with set_site_skill.";
+    }
+  } catch {
+    /* ignore */
+  }
+}
 
 // The pinned target tab. storage.local is the single source of truth (survives
 // the SW being reaped); targetTabId is just a hot cache hydrated on each call.
@@ -137,6 +165,7 @@ async function handleCall(method: string, args: any[]): Promise<any> {
       value = res ? res.value : undefined;
     }
     const isErr = value && typeof value === "object" && "error" in value;
+    if (!isErr && AUGMENT_WITH_SKILLS.has(method)) await attachSiteSkills(value);
     ui({ type: "log", msg: isErr ? `${method}: ${value.error}` : `${method} -> ok`, kind: isErr ? "error" : "result" });
     return value;
   } catch (e: any) {

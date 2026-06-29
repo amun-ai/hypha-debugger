@@ -114,7 +114,7 @@ $("pinTab").addEventListener("click", () => {
 });
 
 // ---- skills: show count + export/import as JSON --------------------------
-const SKILLS_KEY = "hyphaSkills";
+const SKILLS_KEY = "hyphaSiteSkills";
 async function refreshSkillsInfo(): Promise<void> {
   const all = (await chrome.storage.local.get(SKILLS_KEY))[SKILLS_KEY] || {};
   const sites = Object.keys(all).length;
@@ -122,7 +122,7 @@ async function refreshSkillsInfo(): Promise<void> {
     (n: number, e: any) => n + Object.keys(e || {}).length,
     0,
   );
-  $("skillsInfo").textContent = `Skills: ${entries} across ${sites} site${sites === 1 ? "" : "s"}`;
+  $("skillsInfo").textContent = `Site skills: ${entries} across ${sites} site${sites === 1 ? "" : "s"}`;
 }
 $("exportSkills").addEventListener("click", async () => {
   const all = (await chrome.storage.local.get(SKILLS_KEY))[SKILLS_KEY] || {};
@@ -130,10 +130,10 @@ $("exportSkills").addEventListener("click", async () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "hypha-skills.json";
+  a.download = "hypha-site-skills.json";
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  appendLog("exported skills", "status");
+  appendLog("exported site skills", "status");
 });
 $("importSkills").addEventListener("click", () => {
   const input = document.createElement("input");
@@ -155,7 +155,7 @@ $("importSkills").addEventListener("click", () => {
       }
       await chrome.storage.local.set({ [SKILLS_KEY]: cur });
       await refreshSkillsInfo();
-      appendLog(`imported ${merged} skill entr${merged === 1 ? "y" : "ies"}`, "result");
+      appendLog(`imported ${merged} site-skill entr${merged === 1 ? "y" : "ies"}`, "result");
     } catch (e: any) {
       appendLog("import failed: " + (e?.message ?? e), "error");
     }

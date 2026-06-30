@@ -175,15 +175,19 @@ fillInput.__schema__ = {
 export function scrollTo(
   target: string | { x: number; y: number }
 ): { success: boolean; message: string } {
+  // NOTE: use instant scrolling ("auto"), NOT "smooth". Smooth-scroll animations
+  // are driven by requestAnimationFrame, which the browser throttles/pauses in
+  // BACKGROUND tabs — and an agent typically drives a tab that isn't foregrounded,
+  // so a smooth scroll would silently never move. Instant scroll always applies.
   if (typeof target === "string") {
     const el = document.querySelector(target);
     if (!el) {
       return { success: false, message: `No element found for selector: ${target}` };
     }
-    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.scrollIntoView({ behavior: "auto", block: "center" });
     return { success: true, message: `Scrolled to ${target}` };
   }
-  window.scrollTo({ left: target.x, top: target.y, behavior: "smooth" });
+  window.scrollTo({ left: target.x, top: target.y, behavior: "auto" });
   return { success: true, message: `Scrolled to (${target.x}, ${target.y})` };
 }
 

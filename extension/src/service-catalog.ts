@@ -10,11 +10,18 @@
 import { createServiceMap } from "../../javascript/src/relay/service-map.js";
 import { BROWSER_TOOLS } from "./browser-tools.js";
 
-// execute_script is provided as a BROWSER tool (CDP, bypasses page CSP) instead
-// of the page-level one (which can't eval under strict CSP). navigate is
-// superseded by the browser-level navigate; get_skill_md is generated in the
-// offscreen from the full catalog.
-const PAGE_EXCLUDE = new Set(["navigate", "get_skill_md", "execute_script"]);
+// execute_script and take_screenshot are provided as BROWSER tools (via the
+// Chrome debugger / CDP) instead of the page-level ones: execute_script's CDP
+// path bypasses page CSP, and take_screenshot's CDP path renders reliably even
+// when the target tab is backgrounded (the html-to-image route stalls there).
+// navigate is superseded by the browser-level navigate; get_skill_md is
+// generated in the offscreen from the full catalog.
+const PAGE_EXCLUDE = new Set([
+  "navigate",
+  "get_skill_md",
+  "execute_script",
+  "take_screenshot",
+]);
 
 export interface CatalogEntry {
   name: string;

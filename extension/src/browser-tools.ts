@@ -61,13 +61,19 @@ async function cdpEval(tabId: number, code: string): Promise<any> {
         " (restricted page like chrome:// or the Web Store, or another debugger is already attached).",
     };
   }
+  // NOTE: do NOT set replMode:true here. In REPL mode the evaluation result is
+  // the (unawaited) completion value, so `awaitPromise` is ignored and our async
+  // IIFE comes back as a Promise serialized by-value to `{}` (type "object") —
+  // i.e. EVERY call returned {}. Without replMode, awaitPromise awaits the IIFE
+  // and returns the real value (this is the Puppeteer/Playwright approach). We
+  // don't need replMode's `let` re-declaration since each call runs in a fresh
+  // function scope.
   const expression = `(async () => { ${autoReturn(code)} })()`;
   const res: any = await chrome.debugger.sendCommand({ tabId }, "Runtime.evaluate", {
     expression,
     returnByValue: true,
     awaitPromise: true,
     userGesture: true,
-    replMode: true,
   });
   if (res?.exceptionDetails) {
     const ex = res.exceptionDetails;

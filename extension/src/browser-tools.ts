@@ -332,7 +332,9 @@ export const BROWSER_TOOLS: Record<string, Tool> = {
     run: async (ctx, [url, focus = true]) => {
       const t = await chrome.tabs.create({ url, active: !!focus });
       ctx.setTarget(t.id);
-      return tabSummary(t);
+      // The new tab's URL hasn't committed yet (t.url is "" / about:blank), so
+      // derive origin from the requested URL for an immediately-correct result.
+      return tabSummary({ ...t, url: t.url || url });
     },
   },
 

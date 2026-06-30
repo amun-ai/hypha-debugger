@@ -217,8 +217,12 @@ export class PageController {
       this.cleanUpAfterAction();
 
       const { direction, amount, index } = options;
+      // Use loose != null: when no index is passed, it arrives as `null` (not
+      // `undefined`) after crossing the RPC/JSON boundary, and a strict
+      // `!== undefined` check would wrongly try to look up element `null` and
+      // throw — breaking plain page scrolling. Both mean "scroll the page".
       const element =
-        index !== undefined
+        index != null
           ? getElementByIndex(this.selectorMap, index)
           : null;
 

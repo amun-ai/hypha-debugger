@@ -116,9 +116,10 @@ hyd py 'import sys; sys.version'      # run Python via execute_code
 hyd status                           # confirm it's connected
 ```
 
-If the `hyd` command isn't on your PATH after install (e.g. a `--user` install),
-either add the install bin dir to PATH or just use `python -m hypha_debugger.cli`
-in place of `hyd` — identical arguments (`python -m hypha_debugger.cli sh 'pwd'`).
+Install tip: `pipx install hypha-debugger` is the most reliable — it always puts
+`hyd` on your PATH. If instead you used `pip install --user` and `hyd` isn't found,
+either add the user bin dir to PATH, or just use `python -m hypha_debugger.cli` in
+place of `hyd` — identical arguments (`python -m hypha_debugger.cli sh 'pwd'`).
 
 Key ideas:
 - **The remote is stateless.** The "current directory" and "current profile" live

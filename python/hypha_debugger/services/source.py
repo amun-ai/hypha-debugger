@@ -92,13 +92,18 @@ def _get_skill_md_impl() -> str:
 A remote debugger is attached to a running Python process. You have full access
 to run shell + Python, read/write files, inspect variables, and install packages.
 
-**START HERE → install the `hyd` CLI (next section).** Decision rule: if you'll run
-more than ~2 commands here (i.e. almost any real task), `hyd` is the intended
-interface — one `pip install`, then every command is a short `hyd sh '…'` /
-`hyd py '…'` with the connection + working directory remembered for you, far fewer
-tokens than re-sending an authenticated curl each time, and it behaves like a local
-shell. Only for a single throwaway call is raw curl (further down) simpler. The raw
-HTTP API is the low-level fallback and powers the CLI.
+**RECOMMENDED → install the `hyd` CLI (next section).** Decision rule: if you'll run
+more than ~2 commands here (i.e. almost any real task) and you *can* install a pip
+package, `hyd` is the intended interface — one `pip install`, then every command is
+a short `hyd sh '…'` / `hyd py '…'` with the connection + working directory
+remembered for you, far fewer tokens than re-sending an authenticated curl each
+time, and it behaves like a local shell.
+
+**No install? Use `curl` — everything works without the CLI.** If you can't install
+packages (no pip, no network to PyPI, locked-down sandbox), skip `hyd` entirely: the
+raw HTTP API below is complete on its own, with copy-paste `curl` examples for every
+function (it's exactly what `hyd` calls under the hood). Recommended path is `hyd`;
+guaranteed-available path is `curl`. Either fully operates the remote host.
 
 ## Fast path — the `hyd` CLI (do this first)
 

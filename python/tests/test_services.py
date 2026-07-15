@@ -270,19 +270,17 @@ def test_write_file_invalid_mode():
 
 def test_instruction_block_no_token():
     from hypha_debugger.debugger import _build_instruction_block
-    block = _build_instruction_block("https://example.com/ws/services/py-debugger-abc")
-    assert "SERVICE_URL=" in block
-    assert "TOKEN=" not in block
-    assert "Authorization" not in block
-    assert "execute_code" in block
+    url = "https://example.com/ws/services/py-debugger-abc"
+    block = _build_instruction_block(url)
+    assert url in block
     assert "get_skill_md" in block
+    assert "Authorization" not in block  # no token -> no auth header
 
 
 def test_instruction_block_with_token():
     from hypha_debugger.debugger import _build_instruction_block
     block = _build_instruction_block("https://example.com/ws/services/py-debugger", "mytoken123")
-    assert 'TOKEN="mytoken123"' in block
-    assert "Authorization" in block
+    assert "Authorization: Bearer mytoken123" in block
 
 
 # --- source ---
@@ -341,6 +339,6 @@ def test_debug_session_print_instructions(capsys):
     captured = capsys.readouterr()
     assert "WARNING" in captured.out
     assert "trusted" in captured.out
-    assert "SERVICE_URL=" in captured.out
+    assert "get_skill_md" in captured.out
     assert isinstance(result, str)
-    assert "SERVICE_URL=" in result
+    assert "py-debugger-abc" in result

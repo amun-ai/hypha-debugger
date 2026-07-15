@@ -48,6 +48,8 @@ except ImportError:
 _MODULES = {
     "debugger": "hypha_debugger.debugger",
     "services.execute": "hypha_debugger.services.execute",
+    "services.shell": "hypha_debugger.services.shell",
+    "cli": "hypha_debugger.cli",
     "services.filesystem": "hypha_debugger.services.filesystem",
     "services.info": "hypha_debugger.services.info",
     "services.inspect_vars": "hypha_debugger.services.inspect_vars",
@@ -94,6 +96,38 @@ to execute code, read/write files, inspect variables, and install packages.
 persistent Python REPL where variables, imports, and functions survive across
 calls. The other endpoints are convenience shortcuts.
 
+## Fast path — the `hyd` CLI (recommended for agents)
+
+For repeated shell work, don't hand-write authenticated curl calls — install the
+`hyd` client CLI once and run remote commands with almost no per-call overhead.
+It stores this connection as a named **profile** (URL + token) on disk, so later
+calls carry no auth or JSON boilerplate. Bootstrap yourself:
+
+```bash
+pip install hypha-debugger            # ships the `hyd` command
+hyd profile add main "<THIS_SERVICE_URL>"   # add --token <t> if the URL is token-protected
+export HYD_PROFILE=main               # select it (env var — per-terminal, not on disk)
+
+hyd sh 'uname -a && pwd'              # run a remote shell command
+hyd 'ls -la'                         # bare form: anything not a subcommand runs as a command
+hyd py 'import sys; sys.version'      # run Python via execute_code
+```
+
+Key ideas:
+- **The remote is stateless.** The "current directory" and "current profile" live
+  in the environment variables `HYD_CWD` and `HYD_PROFILE` (per shell), so different
+  terminals are isolated and nothing session-specific is written to disk. Set
+  `export HYD_CWD=/some/dir` to fix a working directory, or run
+  `eval "$(hyd shell-init)"` once so `cd`/`cwd` stay in sync automatically after each
+  `hyd sh`.
+- **Multiple machines**: add more profiles (`hyd profile add other "<url>" --token …`)
+  and switch with `export HYD_PROFILE=other` or a one-off `hyd -p other sh '…'`.
+- `hyd sh` streams stdout/stderr and exits with the remote command's exit code, so
+  it behaves like a local shell. Run `hyd` (no args) for full help.
+
+The raw HTTP API below still works (and powers the CLI) — use it directly if you
+can't install the CLI.
+
 ## Quick Start
 
 ```bash
@@ -127,6 +161,19 @@ captured as the return value via AST parsing.
 - **Returns**: `{ok, stdout, stderr, result, result_repr, result_type, error?, error_type?, error_message?, traceback?, timed_out?}`
 - Variables, functions, and imports persist across calls.
 - Example: `"x = 1\\nx + 1"` returns `{ok: true, result: 2}`.
+
+### execute_bash(command, cwd?, env?, timeout?) — remote shell (STATELESS)
+Run a shell command on the remote host. Each call is a fresh shell (no server
+state). To emulate a persistent terminal, pass the current directory as `cwd` and
+reuse the returned `cwd` on the next call — this is exactly what the `hyd` CLI
+above does for you.
+- **command** (str, required): bash command line.
+- **cwd** (str, default `""`): directory to run in (`""` = the process cwd).
+- **env** (object, optional): env vars to export before the command.
+- **timeout** (int, default `30`): seconds; 0 = no limit.
+- **Returns**: `{stdout, exit_code, cwd}` — `stdout` has stderr merged in; `cwd` is
+  the directory AFTER the command (so `cd` is reflected).
+- Example: `curl -X POST "$SERVICE_URL/execute_bash" -d '{"command":"ls -la","cwd":"/tmp"}'`
 
 ### get_process_info()
 PID, CWD, Python version, hostname, platform, memory usage, CPU count.

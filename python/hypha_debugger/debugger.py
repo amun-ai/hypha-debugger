@@ -9,6 +9,7 @@ from typing import Optional
 
 from hypha_debugger.services.info import get_process_info, get_installed_packages
 from hypha_debugger.services.execute import execute_code
+from hypha_debugger.services.shell import execute_bash
 from hypha_debugger.services.inspect_vars import (
     get_variable,
     list_variables,
@@ -228,6 +229,7 @@ async def start_debugger(
         "get_process_info": get_process_info,
         "get_installed_packages": get_installed_packages,
         "execute_code": execute_code,
+        "execute_bash": execute_bash,
         "get_variable": get_variable,
         "list_variables": list_variables,
         "get_stack_trace": get_stack_trace,
@@ -311,6 +313,7 @@ def start_debugger_sync(
         "get_process_info": get_process_info,
         "get_installed_packages": get_installed_packages,
         "execute_code": execute_code,
+        "execute_bash": execute_bash,
         "get_variable": get_variable,
         "list_variables": list_variables,
         "get_stack_trace": get_stack_trace,

@@ -116,6 +116,59 @@ def test_bare_fallback_runs_as_command(cfg, monkeypatch):
     assert seen["command"] == "ls -la"
 
 
+def test_type_inference_browser_and_terminal(cfg):
+    cli.main(["profile", "add", "web", "https://h.io/services/web-navigator-abc"])
+    cli.main(["profile", "add", "box", "https://h.io/services/py-debugger-xyz"])
+    profs = cli._load_profiles()
+    assert profs["web"]["type"] == "browser"
+    assert profs["box"]["type"] == "terminal"
+
+
+def test_type_explicit_override(cfg):
+    cli.main(["profile", "add", "x", "https://h.io/services/anything", "--type", "browser"])
+    assert cli._load_profiles()["x"]["type"] == "browser"
+
+
+def test_bare_dispatches_by_type(cfg, monkeypatch):
+    cli.main(["profile", "add", "web", "https://h.io/services/web-navigator-abc"])
+    monkeypatch.setenv("HYD_PROFILE", "web")
+    seen = {}
+    monkeypatch.setattr(cli, "_call_remote", lambda profile, fn, params, http_timeout=75: seen.update(fn=fn, params=params) or {"result": "My Page", "type": "string"})
+    rc = cli.main(["document.title"])  # bare, browser profile -> execute_script
+    assert rc == 0 and seen["fn"] == "execute_script" and seen["params"]["code"] == "document.title"
+
+
+def test_js_result_printed(cfg, monkeypatch, capsys):
+    cli.main(["profile", "add", "web", "https://h.io/services/web-navigator-abc"])
+    monkeypatch.setenv("HYD_PROFILE", "web")
+    monkeypatch.setattr(cli, "_call_remote", lambda *a, **k: {"result": {"a": 1}, "type": "object"})
+    cli.main(["js", "({a:1})"])
+    assert '"a": 1' in capsys.readouterr().out
+
+
+def test_sh_rejects_browser_profile(cfg, monkeypatch, capsys):
+    cli.main(["profile", "add", "web", "https://h.io/services/web-navigator-abc"])
+    monkeypatch.setenv("HYD_PROFILE", "web")
+    rc = cli.main(["sh", "ls"])
+    assert rc == 2 and "browser profile" in capsys.readouterr().err
+
+
+def test_js_rejects_terminal_profile(cfg, monkeypatch, capsys):
+    cli.main(["profile", "add", "box", "https://h.io/services/py-debugger-xyz"])
+    monkeypatch.setenv("HYD_PROFILE", "box")
+    rc = cli.main(["js", "1+1"])
+    assert rc == 2 and "terminal profile" in capsys.readouterr().err
+
+
+def test_call_generic_passthrough(cfg, monkeypatch):
+    cli.main(["profile", "add", "web", "https://h.io/services/web-navigator-abc"])
+    monkeypatch.setenv("HYD_PROFILE", "web")
+    seen = {}
+    monkeypatch.setattr(cli, "_call_remote", lambda profile, fn, params, http_timeout=75: seen.update(fn=fn, params=params) or {"ok": True})
+    cli.main(["call", "navigate", "--json", '{"url":"https://x.com"}'])
+    assert seen["fn"] == "navigate" and seen["params"]["url"] == "https://x.com"
+
+
 def test_p_flag_selects_profile(cfg, monkeypatch):
     cli.main(["profile", "add", "a", "https://a.io/s/1"])
     cli.main(["profile", "add", "b", "https://b.io/s/2"])

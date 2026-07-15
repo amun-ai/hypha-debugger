@@ -114,6 +114,29 @@ def _normalize_url(url: str) -> str:
     return url.rstrip("/")
 
 
+# ---- profile type (terminal vs browser) ----------------------------------
+def _profile_type(profile: dict) -> str:
+    return profile.get("type", "terminal")
+
+
+def _infer_type(url: str) -> str:
+    """Guess the profile type from the service id in the URL."""
+    u = url.lower()
+    if "web-navigator" in u or "web-debugger" in u or "navigator" in u:
+        return "browser"
+    return "terminal"
+
+
+def _print_value(value) -> None:
+    """Print a service result: strings verbatim, everything else as JSON."""
+    if value is None:
+        return
+    if isinstance(value, str):
+        sys.stdout.write(value if value.endswith("\n") else value + "\n")
+    else:
+        print(json.dumps(value, indent=2, default=str))
+
+
 def _resolve_profile(explicit: str = "") -> tuple:
     """Return (name, profile_dict). Priority: -p flag > $HYD_PROFILE > sole profile."""
     profiles = _load_profiles()
@@ -175,17 +198,7 @@ def _extract_opts(args: list) -> tuple:
     return opts, rest
 
 
-def cmd_sh(args: list, bare: bool = False) -> int:
-    if bare:
-        opts, command_parts = {"profile": "", "timeout": None, "cwd": ""}, args
-    else:
-        opts, command_parts = _extract_opts(args)
-    command = " ".join(command_parts).strip()
-    if not command:
-        raise CliError("nothing to run. Usage: hyd sh '<command>'")
-    _name, profile = _resolve_profile(opts["profile"])
-    cwd = opts["cwd"] or _env_cwd()
-    timeout = opts["timeout"] if opts["timeout"] is not None else 30
+def _run_shell(profile: dict, command: str, cwd: str, timeout: int) -> int:
     data = _call_remote(
         profile, "execute_bash",
         {"command": command, "cwd": cwd, "timeout": timeout},
@@ -200,12 +213,113 @@ def cmd_sh(args: list, bare: bool = False) -> int:
     return int(data.get("exit_code", 0) or 0)
 
 
+def _run_js(profile: dict, code: str, timeout: int) -> int:
+    data = _call_remote(profile, "execute_script", {"code": code}, http_timeout=(timeout or 60) + 15)
+    if isinstance(data, dict):
+        if data.get("error"):
+            sys.stderr.write(f"hyd: {data['error']}\n")
+            return 1
+        # execute_script returns {result, type, ...}; print just the result.
+        _print_value(data["result"] if "result" in data else data)
+    else:
+        _print_value(data)
+    return 0
+
+
+def cmd_run(args: list, bare: bool = False) -> int:
+    """Type-adaptive run: shell on a terminal profile, JavaScript on a browser one."""
+    if bare:
+        opts, parts = {"profile": "", "timeout": None, "cwd": ""}, args
+    else:
+        opts, parts = _extract_opts(args)
+    payload = " ".join(parts).strip()
+    if not payload:
+        raise CliError("nothing to run. Usage: hyd '<shell command or JS>'")
+    name, profile = _resolve_profile(opts["profile"])
+    timeout = opts["timeout"] if opts["timeout"] is not None else 30
+    if _profile_type(profile) == "browser":
+        return _run_js(profile, payload, timeout)
+    return _run_shell(profile, payload, opts["cwd"] or _env_cwd(), timeout)
+
+
+def cmd_sh(args: list) -> int:
+    opts, parts = _extract_opts(args)
+    command = " ".join(parts).strip()
+    if not command:
+        raise CliError("nothing to run. Usage: hyd sh '<command>'")
+    name, profile = _resolve_profile(opts["profile"])
+    if _profile_type(profile) == "browser":
+        raise CliError(f"profile '{name}' is a browser profile — use `hyd js '<code>'` (or bare `hyd '<code>'`).")
+    timeout = opts["timeout"] if opts["timeout"] is not None else 30
+    return _run_shell(profile, command, opts["cwd"] or _env_cwd(), timeout)
+
+
+def cmd_js(args: list) -> int:
+    opts, parts = _extract_opts(args)
+    code = " ".join(parts).strip()
+    if not code:
+        raise CliError("nothing to run. Usage: hyd js '<javascript>'")
+    name, profile = _resolve_profile(opts["profile"])
+    if _profile_type(profile) != "browser":
+        raise CliError(f"profile '{name}' is a terminal profile — use `hyd sh '<command>'`.")
+    timeout = opts["timeout"] if opts["timeout"] is not None else 30
+    return _run_js(profile, code, timeout)
+
+
+def cmd_call(args: list) -> int:
+    """Generic passthrough: call any service function. `hyd call <fn> [--json '{...}'] [k=v ...]`."""
+    opts, rest = _extract_opts(args)
+    if not rest:
+        raise CliError("usage: hyd call <function> [--json '{...}'] [key=value ...]")
+    fn, params = rest[0], {}
+    i = 1
+    while i < len(rest):
+        a = rest[i]
+        if a == "--json" and i + 1 < len(rest):
+            params.update(json.loads(rest[i + 1])); i += 2; continue
+        if "=" in a:
+            k, v = a.split("=", 1)
+            params[k] = v; i += 1; continue
+        i += 1
+    _name, profile = _resolve_profile(opts["profile"])
+    _print_value(_call_remote(profile, fn, params))
+    return 0
+
+
+def cmd_nav(args: list) -> int:
+    if not args:
+        raise CliError("usage: hyd nav <url>")
+    name, profile = _resolve_profile()
+    if _profile_type(profile) != "browser":
+        raise CliError(f"profile '{name}' is not a browser profile.")
+    _print_value(_call_remote(profile, "navigate", {"url": args[0]}))
+    return 0
+
+
+def cmd_shot(args: list) -> int:
+    import base64
+    name, profile = _resolve_profile()
+    if _profile_type(profile) != "browser":
+        raise CliError(f"profile '{name}' is not a browser profile.")
+    data = _call_remote(profile, "take_screenshot", {})
+    b64 = data.get("base64") or (data.get("data_url", "").split(",", 1)[-1] if data.get("data_url") else "")
+    if not b64:
+        raise CliError(f"no screenshot data: {data.get('error', data)}")
+    path = args[0] if args else "screenshot.png"
+    with open(path, "wb") as f:
+        f.write(base64.b64decode(b64))
+    print(path)
+    return 0
+
+
 def cmd_py(args: list) -> int:
     opts, code_parts = _extract_opts(args)
     code = " ".join(code_parts).strip()
     if not code:
         raise CliError("nothing to run. Usage: hyd py '<python code>'")
-    _name, profile = _resolve_profile(opts["profile"])
+    name, profile = _resolve_profile(opts["profile"])
+    if _profile_type(profile) == "browser":
+        raise CliError(f"profile '{name}' is a browser profile — use `hyd js '<code>'`.")
     data = _call_remote(profile, "execute_code", {"code": code})
     if isinstance(data, dict):
         if data.get("stdout"):
@@ -243,26 +357,30 @@ def cmd_profile_add(args: list) -> int:
     i = 0
     while i < len(args):
         a = args[i]
-        if a in ("--token", "--workspace") and i + 1 < len(args):
+        if a in ("--token", "--workspace", "--type") and i + 1 < len(args):
             opts[a.lstrip("-")] = args[i + 1]; i += 2; continue
         pos.append(a); i += 1
     if len(pos) < 2:
-        raise CliError("usage: hyd profile add <name> <service_url> [--token T] [--workspace W] [--use]")
+        raise CliError("usage: hyd profile add <name> <service_url> [--type terminal|browser] [--token T] [--use]")
     name, url = pos[0], _normalize_url(pos[1])
+    ptype = opts.get("type")
+    if ptype and ptype not in ("terminal", "browser"):
+        raise CliError("--type must be 'terminal' or 'browser'")
     profiles = _load_profiles()
     entry = profiles.get(name, {})
     entry["service_url"] = url
+    entry["type"] = ptype or entry.get("type") or _infer_type(url)
     if opts.get("token"):
         entry["token"] = opts["token"]
     if opts.get("workspace"):
         entry["workspace"] = opts["workspace"]
     profiles[name] = entry
     _save_profiles(profiles)
+    label = f"{url} [{entry['type']}]"
     if use:
-        _emit_state({"HYD_PROFILE": name}, human=f"profile '{name}' -> {url} (now active)")
+        _emit_state({"HYD_PROFILE": name}, human=f"profile '{name}' -> {label} (now active)")
     else:
-        # No current-state change → just confirm (eval-safe comment).
-        print(f"# profile '{name}' -> {url}   (activate: export HYD_PROFILE={name})")
+        print(f"# profile '{name}' -> {label}   (activate: export HYD_PROFILE={name})")
     return 0
 
 
@@ -275,7 +393,7 @@ def cmd_profile_list(_args: list) -> int:
     for name, p in profiles.items():
         mark = "*" if name == active else " "
         tok = " (token)" if p.get("token") else ""
-        print(f"{mark} {name}  {p.get('service_url', '')}{tok}")
+        print(f"{mark} {name}  [{_profile_type(p)}]  {p.get('service_url', '')}{tok}")
     return 0
 
 
@@ -331,11 +449,16 @@ def cmd_status(_args: list) -> int:
         name, profile = _resolve_profile()
     except CliError as e:
         print(e); return 1
-    print(f"profile: {name}   cwd: {_env_cwd() or '(remote default)'}   (HYD_PROFILE/HYD_CWD)")
+    ptype = _profile_type(profile)
+    print(f"profile: {name} [{ptype}]   cwd: {_env_cwd() or '(remote default)'}   (HYD_PROFILE/HYD_CWD)")
     print(f"url: {_normalize_url(profile['service_url'])}")
     try:
-        info = _call_remote(profile, "get_process_info", {})
-        print(f"connected: pid={info.get('pid')} host={info.get('hostname')} py={info.get('python_version')}")
+        if ptype == "browser":
+            info = _call_remote(profile, "get_page_info", {})
+            print(f"connected: url={info.get('url')} title={info.get('title')}")
+        else:
+            info = _call_remote(profile, "get_process_info", {})
+            print(f"connected: pid={info.get('pid')} host={info.get('hostname')} py={info.get('python_version')}")
     except CliError as e:
         print(f"UNREACHABLE: {e}"); return 1
     return 0
@@ -359,17 +482,20 @@ def cmd_shell_init(_args: list) -> int:
 
 def _print_help() -> int:
     print(
-        """hyd — Hypha remote debugger CLI (run remote shell commands with minimal overhead)
+        """hyd — Hypha remote CLI: drive a terminal (Python process) OR a browser with minimal overhead
 
-USAGE
-  hyd sh '<command>'            Run a shell command on the active profile (cwd via HYD_CWD)
-  hyd '<command>'              Same (bare form; anything not a subcommand runs as a command)
-  hyd py '<python>'            Run Python via the debugger's execute_code
-  hyd -p <profile> sh '...'    Run against a specific profile (overrides HYD_PROFILE)
+USAGE (adapts to the active profile's type)
+  hyd '<x>'                    Bare: runs <x> as SHELL on a terminal profile, JAVASCRIPT on a browser one
+  hyd sh '<command>'           Force a shell command (terminal profile; cwd via HYD_CWD)
+  hyd js '<javascript>'        Force JavaScript (browser profile) — returns the result
+  hyd py '<python>'            Run Python via execute_code (terminal profile)
+  hyd call <fn> [--json '{…}'] [k=v …]   Call ANY service function (either type)
+  hyd nav <url> | shot [file]  Browser: navigate / save a screenshot (PNG)
+  hyd -p <profile> …           Run against a specific profile (overrides HYD_PROFILE)
 
-PROFILES (machines — stored on disk)
-  hyd profile add <name> <service_url> [--token T] [--workspace W] [--use]
-  hyd profile list | show <name> | rm <name>
+PROFILES (machines — stored on disk; each has a type: terminal|browser)
+  hyd profile add <name> <service_url> [--type terminal|browser] [--token T] [--use]
+  hyd profile list | show <name> | rm <name>       (type inferred from the URL if omitted)
 
 CURRENT STATE (env vars, per-terminal — NOT on disk)
   export HYD_PROFILE=<name>    Select the active profile for this shell
@@ -397,10 +523,20 @@ def main(argv=None) -> int:
             from hypha_debugger import __version__
             print(f"hyd (hypha-debugger) {__version__}")
             return 0
-        if cmd in ("sh", "run", "exec"):
+        if cmd in ("run", "exec"):
+            return cmd_run(argv[1:])
+        if cmd == "sh":
             return cmd_sh(argv[1:])
+        if cmd == "js":
+            return cmd_js(argv[1:])
         if cmd == "py":
             return cmd_py(argv[1:])
+        if cmd == "call":
+            return cmd_call(argv[1:])
+        if cmd == "nav":
+            return cmd_nav(argv[1:])
+        if cmd == "shot":
+            return cmd_shot(argv[1:])
         if cmd in ("profile", "profiles"):
             return cmd_profile(argv[1:] if cmd == "profile" else ["list"] + argv[1:])
         if cmd == "use":
@@ -413,8 +549,9 @@ def main(argv=None) -> int:
             return cmd_status(argv[1:])
         if cmd == "shell-init":
             return cmd_shell_init(argv[1:])
-        # Bare fallback: the whole argv is a shell command.
-        return cmd_sh(argv, bare=True)
+        # Bare fallback: run the whole argv, dispatching by profile type
+        # (shell on a terminal profile, JavaScript on a browser one).
+        return cmd_run(argv, bare=True)
     except CliError as e:
         sys.stderr.write(f"hyd: {e}\n")
         return 2

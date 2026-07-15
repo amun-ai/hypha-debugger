@@ -122,6 +122,13 @@ Key ideas:
   `hyd sh`.
 - **Multiple machines**: add more profiles (`hyd profile add other "<url>" --token …`)
   and switch with `export HYD_PROFILE=other` or a one-off `hyd -p other sh '…'`.
+- **Terminal *or* browser**: each profile has a `type` (inferred from the URL). A
+  terminal profile (this Python debugger) runs shell/Python; a `browser` profile (a
+  Hypha Navigator web service) runs JavaScript. The SAME bare `hyd '<x>'` adapts —
+  shell on a terminal profile, JS on a browser one — or force it with `hyd sh` /
+  `hyd js`. `hyd call <fn> [--json '{…}']` calls any function; `hyd nav <url>` /
+  `hyd shot [file]` are browser shortcuts. Example:
+  `hyd profile add web "<navigator-url>" --type browser --use && hyd 'document.title'`.
 - `hyd sh` streams stdout/stderr and exits with the remote command's exit code, so
   it behaves like a local shell. Run `hyd` (no args) for full help.
 

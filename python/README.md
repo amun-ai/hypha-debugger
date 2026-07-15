@@ -14,6 +14,41 @@ A lightweight, injectable debugger for web pages and Python processes, powered b
 └─────────────────────────┘         └──────────────┘         └─────────────────────────┘
 ```
 
+## The `hyd` CLI — talk to any remote with minimal overhead
+
+Installing this package also gives you the **`hyd`** command — the low-overhead way
+for an agent (or you) to drive a remote target. Store the connection once as a
+**profile**, then every command is a short `hyd sh '…'` / `hyd js '…'` with the
+connection + working directory remembered — far fewer tokens than re-sending
+authenticated curl. One CLI drives **both** target types:
+
+```bash
+pip install hypha-debugger            # or: pipx install hypha-debugger  (always on PATH)
+
+# Terminal target (a Python process running this debugger):
+hyd profile add box "<py-debugger-service-url>"          # type inferred = terminal
+export HYD_PROFILE=box
+hyd sh 'uname -a && pwd'              # remote shell   | hyd 'ls -la' (bare form)
+hyd py 'import sys; sys.version'      # remote Python via execute_code
+
+# Browser target (a Hypha Navigator web service):
+hyd profile add web "<navigator-service-url>" --type browser
+export HYD_PROFILE=web
+hyd 'document.title'                 # bare form runs JavaScript on a browser profile
+hyd nav 'https://example.com'        # navigate   | hyd shot page.png  (screenshot)
+hyd call get_browser_state           # call any service function
+
+hyd status                           # confirm the connection
+```
+
+The current profile + directory live in the `HYD_PROFILE` / `HYD_CWD` environment
+variables (per-terminal, nothing session-specific on disk); the remote stays
+stateless. If `hyd` isn't on your PATH after a `--user` install, use
+`python -m hypha_debugger.cli` (identical arguments). Run `hyd` with no args for help.
+
+> Any debugger's `GET <service-url>/get_skill_md` includes these same bootstrap
+> instructions, so an AI agent can self-install and connect from the URL alone.
+
 ## JavaScript (Browser)
 
 [![npm](https://img.shields.io/npm/v/hypha-debugger)](https://www.npmjs.com/package/hypha-debugger)

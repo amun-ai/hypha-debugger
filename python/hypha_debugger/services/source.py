@@ -90,18 +90,20 @@ def _get_skill_md_impl() -> str:
 
 ## Overview
 A remote debugger is attached to a running Python process. You have full access
-to execute code, read/write files, inspect variables, and install packages.
+to run shell + Python, read/write files, inspect variables, and install packages.
 
-**Recommended approach**: Use `execute_code` as your primary tool — it's a
-persistent Python REPL where variables, imports, and functions survive across
-calls. The other endpoints are convenience shortcuts.
+**START HERE → install the `hyd` CLI (next section).** Decision rule: if you'll run
+more than ~2 commands here (i.e. almost any real task), `hyd` is the intended
+interface — one `pip install`, then every command is a short `hyd sh '…'` /
+`hyd py '…'` with the connection + working directory remembered for you, far fewer
+tokens than re-sending an authenticated curl each time, and it behaves like a local
+shell. Only for a single throwaway call is raw curl (further down) simpler. The raw
+HTTP API is the low-level fallback and powers the CLI.
 
-## Fast path — the `hyd` CLI (recommended for agents)
+## Fast path — the `hyd` CLI (do this first)
 
-For repeated shell work, don't hand-write authenticated curl calls — install the
-`hyd` client CLI once and run remote commands with almost no per-call overhead.
-It stores this connection as a named **profile** (URL + token) on disk, so later
-calls carry no auth or JSON boilerplate. Bootstrap yourself:
+Bootstrap yourself in three lines (THIS_SERVICE_URL = the URL you fetched this doc
+from, without the trailing `/get_skill_md`):
 
 ```bash
 pip install hypha-debugger            # ships the `hyd` command
@@ -111,7 +113,12 @@ export HYD_PROFILE=main               # select it (env var — per-terminal, not
 hyd sh 'uname -a && pwd'              # run a remote shell command
 hyd 'ls -la'                         # bare form: anything not a subcommand runs as a command
 hyd py 'import sys; sys.version'      # run Python via execute_code
+hyd status                           # confirm it's connected
 ```
+
+If the `hyd` command isn't on your PATH after install (e.g. a `--user` install),
+either add the install bin dir to PATH or just use `python -m hypha_debugger.cli`
+in place of `hyd` — identical arguments (`python -m hypha_debugger.cli sh 'pwd'`).
 
 Key ideas:
 - **The remote is stateless.** The "current directory" and "current profile" live

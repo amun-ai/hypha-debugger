@@ -22,11 +22,30 @@ after every ``hyd sh``. See any debugger's ``GET <url>/get_skill_md``.
 import json
 import os
 import shlex
+import ssl
 import sys
 import urllib.error
 import urllib.request
 
 __all__ = ["main"]
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """A TLS context that verifies certs using certifi's CA bundle when available.
+
+    Python's default context uses the system/OpenSSL trust store, which is often
+    missing or unconfigured (macOS framework Python, minimal containers, fresh
+    venvs) — causing CERTIFICATE_VERIFY_FAILED on HTTPS service URLs even though
+    `curl` works. certifi (a transitive dep of hypha-rpc) fixes that portably.
+    """
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
+
+
+_SSL_CTX = _ssl_context()
 
 
 class CliError(Exception):
@@ -164,7 +183,7 @@ def _call_remote(profile: dict, fn: str, params: dict, http_timeout: int = 75) -
     if profile.get("token"):
         req.add_header("Authorization", "Bearer " + profile["token"])
     try:
-        with urllib.request.urlopen(req, timeout=http_timeout) as resp:
+        with urllib.request.urlopen(req, timeout=http_timeout, context=_SSL_CTX) as resp:
             raw = resp.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace") if e.fp else ""

@@ -342,3 +342,20 @@ def test_debug_session_print_instructions(capsys):
     assert "get_skill_md" in captured.out
     assert isinstance(result, str)
     assert "py-debugger-abc" in result
+
+
+def test_ensure_ssl_certs_sets_when_unset(monkeypatch):
+    import os
+    from hypha_debugger.debugger import _ensure_ssl_certs
+    monkeypatch.delenv("SSL_CERT_FILE", raising=False)
+    _ensure_ssl_certs()
+    # certifi is a dependency, so a real CA bundle path should now be set
+    assert os.environ.get("SSL_CERT_FILE") and os.path.exists(os.environ["SSL_CERT_FILE"])
+
+
+def test_ensure_ssl_certs_respects_existing(monkeypatch):
+    import os
+    from hypha_debugger.debugger import _ensure_ssl_certs
+    monkeypatch.setenv("SSL_CERT_FILE", "/custom/ca-bundle.pem")
+    _ensure_ssl_certs()
+    assert os.environ["SSL_CERT_FILE"] == "/custom/ca-bundle.pem"

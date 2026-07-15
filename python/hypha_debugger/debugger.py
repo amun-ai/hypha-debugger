@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import secrets
 import threading
 from dataclasses import dataclass, field
@@ -19,6 +20,24 @@ from hypha_debugger.services.filesystem import list_files, read_file, write_file
 from hypha_debugger.services.source import get_source, get_skill_md
 
 logger = logging.getLogger("hypha_debugger")
+
+
+def _ensure_ssl_certs() -> None:
+    """Point OpenSSL at certifi's CA bundle when the system trust store is
+    unconfigured — otherwise the hypha websocket TLS handshake fails with
+    CERTIFICATE_VERIFY_FAILED (macOS framework Python, minimal containers, fresh
+    venvs). Only sets the env vars if the user hasn't already; must run before
+    the first TLS connection (SSLContext reads these at creation time)."""
+    if os.environ.get("SSL_CERT_FILE"):
+        return
+    try:
+        import certifi
+
+        bundle = certifi.where()
+        os.environ["SSL_CERT_FILE"] = bundle
+        os.environ.setdefault("SSL_CERT_DIR", os.path.dirname(bundle))
+    except Exception:
+        pass
 
 
 def _build_service_url(server_url: str, service_id: str) -> str:
@@ -200,6 +219,7 @@ async def start_debugger(
     Returns:
         A DebugSession with service_id, workspace, server, service_url, and token.
     """
+    _ensure_ssl_certs()
     from hypha_rpc import connect_to_server
 
     effective_id, effective_visibility = _resolve_id_and_visibility(
@@ -290,6 +310,7 @@ def start_debugger_sync(
     Returns:
         A DebugSession with service_id, workspace, server, service_url, and token.
     """
+    _ensure_ssl_certs()
     from hypha_rpc.sync import connect_to_server
 
     effective_id, effective_visibility = _resolve_id_and_visibility(
